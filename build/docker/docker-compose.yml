@@ -1,0 +1,14 @@
+services:
+  xcp:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: xcpserver
+    container_name: xcp
+    ports:
+      - "7980:7980"
+    volumes:
+      - /etc/localtime:/etc/localtime
+    environment:
+      - TZ=Asia/Shanghai
+    network_mode: bridge
