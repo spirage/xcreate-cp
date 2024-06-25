@@ -1,8 +1,5 @@
 # -*- coding: UTF-8 -*-
-from fastapi.exceptions import RequestValidationError
-
 from core.database import *
-# from core.exception import ParaInvalidException, NotNecessaryException, CanNotSelectException
 
 
 def gen_voucher_entry():
@@ -18,13 +15,17 @@ where exists ( select 1 from orig_voucher_entry b
                 where b.凭证号码=a.凭证号码 
                   and b.凭证号码 is not null 
                   and trim(b.凭证号码) <> '' 
+                  --0530 修改
+                  and b.凭证状态 <> '50'
                   and 参号 in (select distinct substr(成本科目,1,instr(成本科目,'-')-1) from orig_product_cost )
              )
     """)
-    exec_command("create index ix_voucher_entry_summary on voucher_entry(凭证摘要)")
-    exec_command("create index ix_voucher_entry_acctitle on voucher_entry(会计科目代码)")
-    exec_command("create index ix_voucher_entry_accno on voucher_entry(户号)")
-    exec_command("create index ix_voucher_entry_refno on voucher_entry(参号)")
+    exec_command("create index if not exists ix_voucher_entry_summary on voucher_entry(凭证摘要)")
+    exec_command("create index if not exists ix_voucher_entry_acctitle on voucher_entry(会计科目代码)")
+    exec_command("create index if not exists ix_voucher_entry_accno on voucher_entry(户号)")
+    exec_command("create index if not exists ix_voucher_entry_refno on voucher_entry(参号)")
+    # 0605 修改 在凭证表加工时清空研发分配人工设置系数，保证第一次运行process_map_ccenter_caccount_svoucher时系数都是1
+    exec_command("delete from para_ba_rd_split_ratio")
 
 
 def tag_voucher_entry():
@@ -62,24 +63,39 @@ where a.户号 in (select code from code_cost_center where transfer is not null)
     """)
 
 
-def fill_code_product():
-    logger.info("导入orig_product_cost时补充code_product")
-    exec_command("""    
-insert into code_product
-select distinct substr(产副品代码,1,instr(产副品代码,'-')-1), substr(产副品代码,instr(产副品代码,'-')+1), null, substr(成本中心,1,instr(成本中心,'-')-1)
-from orig_product_cost
-where substr(产副品代码,1,instr(产副品代码,'-')-1) not in (select code from code_product)
-    """)
+def gen_tmp_special_retrospect():
+    logger.info("生成tmp_special_retrospect")
+    exec_command("drop table if exists tmp_special_retrospect")
     exec_command("""
-update code_product as a 
-   set transfer = (select code from code_product b where b.code=substr(a.code,1,2)||'2'||substr(a.code,4))
- where substr(a.code,3,1)='1'
-   and transfer is null    
+create table tmp_special_retrospect as  
+select distinct 参号 cost_account_code, 参号名称 cost_account_name, 户号 cost_center_code, 户号名称 cost_center_name, b.transfer cost_center_transfer
+from orig_voucher_entry a,
+     code_cost_center b
+where a.户号=b.code
+  and a.借贷='2'
+  and a.参号 like '8%'
+  and b.transfer is not null  
     """)
 
 
+# 0604 修改 不需人工该选择，自动该选择摘要含有“半成品产出抛帐”的最后一次（行号最大）凭证号，将其放入tmp_semi_product_disposal
+def gen_tmp_semi_product_disposal():
+    logger.info("生成tmp_semi_product_disposal")
+    exec_command("drop table if exists tmp_semi_product_disposal")
+    exec_command("""
+create table tmp_semi_product_disposal as 
+ select 凭证号码 voucher_no
+from orig_voucher_entry 
+where "index" = (select max("index") 
+                   from orig_voucher_entry 
+                  where instr(凭证摘要,'半成品产出抛帐')>0)    
+    """)
+
+# 根据0606测试文档 0615 讨论确定 0618 修改 amount_incurred发生凭证金额 和 voucher_incurred发生凭证 去掉判断条件 "不能是之前后台表sheet 凭证导入中记录的凭证号(ACH1000008)"
 def process_map_ccenter_caccount_svoucher():
     logger.info("acc_产副品表与凭证表分析")
+    gen_tmp_special_retrospect()
+    gen_tmp_semi_product_disposal()
     exec_command("drop table if exists map_ccenter_caccount_voucher")
     exec_command("""
 create table map_ccenter_caccount_voucher as
@@ -93,33 +109,43 @@ from orig_product_cost
 group by 1,2,3,4
 ) a left join
 (
-select case when exists (select 1 from para_special_retrospect x where x.cost_center_code=a.户号 and x.cost_account_code=a.参号) 
-       then (select cost_center_transfer from para_special_retrospect c where c.cost_center_code=a.户号)
-       else 户号 end cost_center_code, 
+select case when instr(a.tag_special,'D')>0 then (select c.transfer from code_cost_center c where c.code=a.户号)
+       else 户号 end cost_center_code,
        参号 cost_account_code, 
-       round(sum(case when 凭证号码 not in (select voucher_no from tmp_semi_product_disposal) and 借贷='1' then 本币金额 else null end),2) amount_incurred, 
-       group_concat(case when 凭证号码 not in (select voucher_no from tmp_semi_product_disposal) and 借贷='1' then "index" end) voucher_incurred,
-       round(sum(case when exists (select 1 from para_special_retrospect x where x.cost_center_code=a.户号 and x.cost_account_code=a.参号) 
+       case when 参号 in ('1011008','1011009') then null  -- 0618 修改 排除 主原料-焦化除尘灰费用 和 主原料-冲焦化除尘灰费用
+            else round(sum(case when /* 0618 修改 凭证号码 not in (select voucher_no from tmp_semi_product_disposal) and*/ 借贷='1' then 本币金额 
+                                when 借贷='2' and a.tag_special='C' then -1*本币金额  -- 0618 新增 C类凭证处理
+                                else null 
+                           end),2)
+       end amount_incurred, 
+       case when 参号 in ('1011008','1011009') then null  -- 0618 修改 排除 主原料-焦化除尘灰费用 和 主原料-冲焦化除尘灰费用
+            else group_concat(case when /* 0618 修改 凭证号码 not in (select voucher_no from tmp_semi_product_disposal) and*/ 借贷='1' then "index" 
+                                   when 借贷='2' and a.tag_special='C' then "index"  -- 0618 新增 C类凭证处理
+                              end)
+       end voucher_incurred,
+       round(sum(case when exists (select 1 from tmp_special_retrospect x where x.cost_center_code=a.户号 and x.cost_account_code=a.参号) 
                       then (select sum(本币金额) from voucher_entry b 
-                             where (b.户号=a.户号 or b.户号=(select cost_center_transfer from para_special_retrospect x where x.cost_center_code=a.户号))
+                             where (b.户号=a.户号 or b.户号=(select cost_center_transfer from tmp_special_retrospect x where x.cost_center_code=a.户号))
                                and b.参号 in ('5100000', '5200000')
                                and b.借贷 = '1')
                  else null end),2) amount_retrospect,
-       group_concat(case when exists (select 1 from para_special_retrospect x where x.cost_center_code=a.户号 and x.cost_account_code=a.参号) 
+       group_concat(case when exists (select 1 from tmp_special_retrospect x where x.cost_center_code=a.户号 and x.cost_account_code=a.参号) 
                     then (select group_concat("index") from voucher_entry b 
-                           where (b.户号=a.户号 or b.户号=(select cost_center_transfer from para_special_retrospect x where x.cost_center_code=a.户号))
+                           where (b.户号=a.户号 or b.户号=(select cost_center_transfer from tmp_special_retrospect x where x.cost_center_code=a.户号))
                              and b.参号 in ('5100000', '5200000')
                              and b.借贷 = '1') 
                     end) voucher_retrospect,
-       round(sum(case when 凭证号码 in (select voucher_no from tmp_semi_product_disposal) and 借贷='2' then 本币金额 else null end),2) amount_carryforward
+       case when 参号 in ('1011008','1011009') then null  -- 0618 修改 排除 主原料-焦化除尘灰费用 和 主原料-冲焦化除尘灰费用
+            else round(sum(case when 凭证号码 in (select voucher_no from tmp_semi_product_disposal) and 借贷='2' then 本币金额 else null end),2)
+       end amount_carryforward
 from voucher_entry a
-group by case when exists (select 1 from para_special_retrospect x where x.cost_center_code=a.户号 and x.cost_account_code=a.参号) 
-         then (select cost_center_transfer from para_special_retrospect x where x.cost_center_code=a.户号)
-         else 户号 end, 参号
+group by 1,2
 ) b on a.cost_center_code = b.cost_center_code and a.cost_account_code = b.cost_account_code
     """)
     exec_command("drop table if exists map_product_account")
     exec_command("""
+--ACC_产副品表加工
+--根据0606测试文档 0615讨论结果 0618 修改
 create table map_product_account as 
 select substr(成本中心, 1, instr(成本中心, '-')-1) cost_center_code, substr(成本中心, instr(成本中心, '-')+1) cost_center_name, 
              substr(产副品代码, 1, instr(产副品代码, '-')-1) product_code, substr(产副品代码, instr(产副品代码, '-')+1) product_name, 
@@ -128,9 +154,9 @@ select substr(成本中心, 1, instr(成本中心, '-')-1) cost_center_code, sub
              本月产量 month_output , 本月总成本 month_cost, 本月总耗 month_consume
         from orig_product_cost
        where substr(成本科目, instr(成本科目, '-')+1) not like '主原料-%'
-          or (instr('主原料-铁块、主原料-外购邯宝铁水、主原料-外购股份铁水、主原料-股份自产压块、主原料-钢渣大渣块、主原料-邯宝烧结矿',substr(成本科目,instr(成本科目,'-')+1))>0
-              and substr(成本科目,instr(成本科目,'-')+1) in (select name from code_cost_account where source_type='直接支用-外购半成品')
-             )    
+          --0618 修改
+          or instr('主原料-铁块、主原料-外购邯宝铁水、主原料-外购股份铁水、主原料-股份自产压块、主原料-钢渣大渣块、主原料-邯宝烧结矿',substr(成本科目,instr(成本科目,'-')+1))>0
+          or substr(成本科目,instr(成本科目,'-')+1) in (select name from code_cost_account where source_type='直接支用-外购半成品')
     """)
     exec_command("drop table if exists map_project_product_account")
     exec_command("""
@@ -148,7 +174,7 @@ from map_project_product a,
     """)
     exec_command("""
 update map_project_product_account as a
-set ratio_adjust = (select 输入系数 from para_ba_rd_split_ratio b where b.作业区=a.cost_center_name and b.成本元素 = a.cost_account_name and b.研发项目代码 = a.project_code)
+set ratio_adjust = coalesce ( (select ratio_adjust from para_ba_rd_split_ratio b where b.cost_account_code=a.cost_account_code and b.cost_account_code = a.cost_account_code and b.project_code = a.project_code), 1)
     """)
     exec_command("drop table if exists map_product_account_rd")
     exec_command("""
@@ -164,7 +190,7 @@ on a.cost_center_code=b.cost_center_code and a.product_code=b.product_code and a
     exec_command("drop table if exists map_ccenter_caccount_svoucher")
     exec_command("""
 create table map_ccenter_caccount_svoucher as 
-select rowid rowno, a.*, b.rd_amount, b.rd_consume, 
+select row_number() over() rowno, a.*, b.rd_amount, b.rd_consume, 
        null voucher_type, null voucher_selected, null amount_selected, null rd_ratio
 from map_ccenter_caccount_voucher a left join
 (
@@ -177,8 +203,8 @@ and a.cost_account_code = b.cost_account_code
     """)
     exec_command("""
     update map_ccenter_caccount_svoucher
-set voucher_type = case when cost_account_code in (select cost_account_code from para_cost_account_transfer where cost_account_transfer is null) then 'TG-BZD'
-                        when cost_account_code in (select cost_account_code from para_cost_account_transfer where cost_account_transfer is not null) then 'TS-1'
+set voucher_type = case when cost_account_code in (select cost_account_code from para_reimbursement_preparation) then 'TG-BZD'
+                        when cost_account_code in ('5100000','5200000') then 'TS-1'
                         when rd_amount = 0 then 'TG-LZ'
                         when voucher_retrospect is not null then 'ZS-1'                            
                         else 'PT-'||(length(voucher_incurred) - length(replace(voucher_incurred,',','')) + 1)
@@ -191,7 +217,7 @@ set voucher_type = 'TS-2'
 where exists (select 1 from map_ccenter_caccount_svoucher b 
                where b.voucher_type = 'TS-1' 
                  and b.cost_center_code = a.cost_center_code 
-                 and a.cost_account_code=(select cost_account_transfer from para_cost_account_transfer c where c.cost_account_code=b.cost_account_code))
+                 and a.cost_account_code='8000050')
     """)
     exec_command("""
     update map_ccenter_caccount_svoucher as a
@@ -234,6 +260,33 @@ def get_voucher_detail(voucher_index):
     row = cur.fetchone()
     data = dict(zip(tuple(column[0] for column in cur.description), row))
     return data
+
+
+def get_voucher_by_no(voucher_no):
+    if voucher_no is None or voucher_no == '':
+        raise ValueError("参数值不在合理范围")
+    query = "select * from voucher_entry where 凭证号码 = '" + str(voucher_no) + "'"
+    cur = exec_query(query)
+    rows = cur.fetchall()
+    data = [dict(zip(tuple(column[0] for column in cur.description), row)) for row in rows]
+    return data
+
+
+# 根据0606测试文档 0615讨论确定 导出当前系数人工设置表时，过滤掉报制单类成本科目 0618 修改
+def gen_para_ba_rd_split_ratio():
+    logger.info("生成para_ba_rd_split_ratio")
+    exec_command("drop table if exists para_ba_rd_split_ratio")
+    exec_command("""
+create table para_ba_rd_split_ratio as
+select a.project_code, (select 项目名称 from para_project x where x.项目编码=a.project_code limit 1) project_name,
+       a.cost_center_code, a.cost_center_name,
+       a.cost_account_code, a.cost_account_name,
+       round(sum(a.rd_amount),2) rd_amount, 
+       a.ratio_adjust
+from map_project_product_account a
+where cost_account_code not in (select cost_account_code from para_reimbursement_preparation)
+group by 1,3,4,5,6,8
+    """)
 
 
 def select_voucher(rowno, voucher_index):
@@ -352,6 +405,16 @@ group by 1,2
     """)
 
 
+def process_stat_project_orig():
+    exec_command("drop table if exists stat_project_orig")
+    exec_command("""
+create table stat_project_orig as
+select project_code 项目编号, (select 项目名称 from para_project b where b.项目编码=a.project_code limit 1) 项目名称,  raccount_code 研发科目编码, raccount_name 研发科目名称, sum(account_ramount) 研发科目金额, sum(account_ramount) / sum( sum(account_ramount) ) over (partition by project_code) 比例
+from map_svoucher_project_raccount a
+group by 1,2,3,4
+    """)
+
+
 def process_stat_project():
     exec_command("drop table if exists stat_project")
     exec_command("""
@@ -382,7 +445,7 @@ group by 1,2,3,4
 def process_stat_after_adjusted_left():
     exec_command("drop table if exists acd_系数设置后指标统计_左")
     exec_command("""
-    create table acd_系数设置后指标统计_左 as
+create table acd_系数设置后指标统计_左 as
 select a.cost_center_code, a.cost_center_name, a.product_code, a.product_name, 
        b.ratio_recycle, 
        ( b.ratio_recycle * (select sum(mat_wt) from mat_track_detail where account_title_item='31' and cost_center<>' ') * (select ratio_recycle from para_recycle where cost_center_code='all' and product_code='all') ) wt_recycle,
@@ -409,30 +472,55 @@ set amount_recycle = wt_recycle * unit_price_discount,
     """)
 
 
+# 根据0606 测试文档 0615讨论确定 0618 修改 改为orig_product_cost左关联map_project_product_account
 def process_stat_after_adjusted_right():
     exec_command("drop table if exists acd_系数设置后指标统计_右")
     exec_command("""
-    create table acd_系数设置后指标统计_右 as
-select case when substr(cost_account_code,1,1) in ('1','2') and instr(cost_account_name, '合金料')>0 then '合金料'
-            when substr(cost_account_code,1,1) in ('1','2') and cost_account_code in ('1031002', '1091001', '1031001') then '半成品'
-            when substr(cost_account_code,1,1) in ('1','2') then '主原料（不含半成品）'
-            when substr(cost_account_code,1,1) = '3' then '辅助材料'
-            when substr(cost_account_code,1,1) = '4' then '能源介质'
-            when substr(cost_account_code,1,1) = '5' and instr(cost_account_name, '职工薪酬')>0 then '人员费用-职工薪酬'
-            when substr(cost_account_code,1,1) = '5' then '人员费用-福利费'
-            when substr(cost_account_code,1,1) = '6' then '维修费用'
-            when substr(cost_account_code,1,1) = '7' then '协力费'
-            when substr(cost_account_code,1,1) = '8' then '一般性厂务费用'
-            when substr(cost_account_code,1,1) = '9' then '物料新品'
+create table acd_系数设置后指标统计_右 as
+select case when substr(a.成本科目,1,1) in ('1','2') and instr(a.成本科目, '合金料')>0 then '合金料'
+            when substr(a.成本科目,1,1) in ('1','2') and substr(a.成本科目,1,instr(a.成本科目,'-')-1) in ('1031002', '1091001', '1031001') then '半成品'
+            when substr(a.成本科目,1,1) in ('1','2') then '主原料（不含半成品）'
+            when substr(a.成本科目,1,1) = '3' then '辅助材料'
+            when substr(a.成本科目,1,1) = '4' then '能源介质'
+            when substr(a.成本科目,1,1) = '5' and instr(a.成本科目, '职工薪酬')>0 then '人员费用-职工薪酬'
+            when substr(a.成本科目,1,1) = '5' then '人员费用-福利费'
+            when substr(a.成本科目,1,1) = '6' then '维修费用'
+            when substr(a.成本科目,1,1) = '7' then '协力费'
+            when substr(a.成本科目,1,1) = '8' then '一般性厂务费用'
+            when substr(a.成本科目,1,1) = '9' then '物料新品'
        end caccount_type,
-       sum(month_cost) month_cost,
+       sum(b.month_cost) month_cost,
        sum(rd_amount) rd_amount,
-       sum(rd_amount)/sum(month_cost) ratio_rd_amount,
+       sum(rd_amount)/sum(b.month_cost) ratio_rd_amount,
        sum(rd_amount*coalesce(ratio_adjust,1)) rd_amount_adjust,
-       sum(rd_amount*coalesce(ratio_adjust,1))/sum(month_cost) ratio_rd_amount_adjust,
-       sum(rd_amount*coalesce(ratio_adjust,1))/sum(month_cost)*0.3 ratio_rd_amount_adjust_30percent
-from map_project_product_account  
+       sum(rd_amount*coalesce(ratio_adjust,1))/sum(b.month_cost) ratio_rd_amount_adjust,
+       sum(rd_amount*coalesce(ratio_adjust,1))/sum(b.month_cost)*0.3 ratio_rd_amount_adjust_30percent
+from orig_product_cost a left join map_project_product_account b
+  on substr(a.成本中心,1,instr(a.成本中心,'-')-1)=b.cost_center_code 
+ and substr(a.产副品代码,1,instr(a.产副品代码,'-')-1)=b.product_code 
+ and a.辅助核算对象=b.ba_object_sub_1 
+ and substr(a.成本科目,1,instr(a.成本科目,'-')-1)=b.cost_account_code
 group by 1
+    """)
+
+
+def process_stat_voucher_balance():
+    exec_command("drop table if exists stat_voucher_balance")
+    exec_command("""
+create table stat_voucher_balance as 
+select ( select 凭证号码 from voucher_entry b where b."index" = a.voucher_selected ) voucher_no, 
+       voucher_selected, cost_account_name, cost_center_name, cost_account_name, amount_selected, rd_amount, 
+       ( select sum(b.rd_amount*coalesce(b.ratio_adjust,1)) from map_project_product_account b where b.cost_center_code=a.cost_center_code and b.cost_account_code=a.cost_account_code ) rd_amount_adjusted,
+       null balance,
+       null balance_ratio
+from map_ccenter_caccount_svoucher a
+where a.voucher_selected is not not null 
+  and a.rd_amount is not null 
+    """)
+    exec_command("""
+update stat_voucher_balance 
+   set balance = amount_selected - coalesce(rd_amount,0),
+       balance_ratio = (amount_selected - coalesce(rd_amount,0)) / amount_selected    
     """)
 
 

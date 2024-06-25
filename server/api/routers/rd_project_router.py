@@ -1,8 +1,8 @@
 # -*- coding: UTF-8 -*-
 from typing import Union
+from pydantic import BaseModel
 
 from fastapi import UploadFile, File
-from pydantic import BaseModel
 from starlette.responses import Response
 
 from service.rd_project_service import *
@@ -68,18 +68,14 @@ async def tag_mat_group():
     return ok()
 
 
-class Page(BaseModel):
-    page: Union[int, None] = 1
-    limit: Union[int, None] = 500
-
-
-@rd_project_router.post("/get_mat_detail", tags=["3.2 研发项目分析"])
-async def get_mat_detail(page: Page):
+@rd_project_router.get("/get_stat_project_wt", tags=["3.2 研发项目分析"])
+async def get_stat_project_wt():
     """
-    获取物料详情信息
+    处理和获取研发项目匹配结果统计表
     """
     try:
-        data = db.get_table("mat_track_detail", page.page, page.limit)
+        rd_service.process_stat_project_wt()
+        data = db.get_table('stat_project_wt', 1, 500)
         return ok(data)
     except sqlite3.OperationalError as oe:
         logger.error("数据库操作异常：" + str(oe))
@@ -165,6 +161,50 @@ async def imp_code_cost_center(file: UploadFile = File(...)):
         return fail(24, str(ex))
 
 
+@rd_project_router.get("/tpl_product_cost", tags=["3.2 研发项目分析"])
+async def tpl_product_cost():
+    """
+    获取成本中心产品成本构成表模板
+    """
+    try:
+        file_for_download = "orig_product_cost.xlsx"
+        excel_content = db.export_through_mem("tpl_product_cost")
+        response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
+        return response
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@rd_project_router.post("/imp_product_cost", tags=["3.2 研发项目分析"])
+async def imp_product_cost(file: UploadFile = File(...)):
+    """
+    导入成本中心产品成本构成表
+    """
+    try:
+        if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+            await db.import_through_mem(file, "orig_product_cost")
+            rd_service.fill_code_product()
+            return ok()
+        else:
+            return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+class Page(BaseModel):
+    page: Union[int, None] = 1
+    limit: Union[int, None] = 500
+
+
 @rd_project_router.post("/get_semi_product_in_out", tags=["3.2 研发项目分析"])
 async def get_semi_product_in_out(page: Page):
     """
@@ -202,7 +242,7 @@ async def get_semi_product_in_out_sum(page: Page):
 @rd_project_router.get("/get_map_project_product", tags=["3.2 研发项目分析"])
 async def get_map_project_product():
     """
-    aca_ca_首次分配数据源
+    aca_ca_首次分配数据源 处理和获取项目产品对应关系表
     """
     try:
         rd_service.process_map_project_product()
@@ -216,30 +256,16 @@ async def get_map_project_product():
         return fail(24, str(ex))
 
 
-# @rd_project_router.post("/get_aca_cb", tags=["3.2 研发项目分析"])
-# async def get_aca_cb(page: Page):
-#     """
-#     aca_cb_履历码首笔投入
-#     """
-#     try:
-#         rd_service.process_aca_cb()
-#         data = db.get_table('aca_cb', page.page, page.limit)
-#         return ok(data)
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-
-@rd_project_router.get("/tpl_para_inventory_transfer", tags=["3.2 研发项目分析"])
-async def tpl_para_inventory_transfer():
+# 新增 0618
+@rd_project_router.get("/exp_instorage_tag", tags=["3.2 研发项目分析"])
+async def exp_instorage_tag():
     """
-    获取转库存人工设置参数表模板
+    获取当前入库标记信息
     """
     try:
-        file_for_download = "para_inventory_transfer.xlsx"
-        excel_content = db.export_through_mem("tpl_para_inventory_transfer")
+        rd_service.get_instorage()
+        file_for_download = "para_instorage_tag.xlsx"
+        excel_content = db.export_through_mem("para_instorage_tag")
         response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
         return response
@@ -251,14 +277,16 @@ async def tpl_para_inventory_transfer():
         return fail(24, str(ex))
 
 
-@rd_project_router.post("/imp_para_inventory_transfer", tags=["3.2 研发项目分析"])
-async def imp_para_inventory_transfer(file: UploadFile = File(...)):
+# 新增 0618
+@rd_project_router.post("/imp_instorage_tag", tags=["3.2 研发项目分析"])
+async def imp_instorage_tag(file: UploadFile = File(...)):
     """
-    导入转库存人工设置参数表
+    导入并更新入库标记信息
     """
     try:
         if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
-            await db.import_through_mem(file, "para_inventory_transfer", False)
+            await db.import_through_mem(file, "para_instorage_tag", False)
+            rd_service.tag_instorage()
             return ok()
         else:
             return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")

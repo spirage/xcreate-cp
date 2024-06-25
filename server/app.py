@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
 from starlette.middleware.cors import CORSMiddleware
-from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from server.api.routers.common_router import *
@@ -19,7 +18,7 @@ async def not_found(request, exc):
 
 exception_handlers = {404: not_found}
 
-app = FastAPI(title="XCP 接口文档", description="核心处理单元(Core Processor)接口文档", version="0.3.03", docs_url=None, redoc_url=None, exception_handlers=exception_handlers)
+app = FastAPI(title="XCP 接口文档", description="核心处理单元(Core Processor)接口文档", version="1.9.2", docs_url=None, redoc_url=None, exception_handlers=exception_handlers)
 
 
 @app.get("/doc", include_in_schema=False)
@@ -45,14 +44,6 @@ app.add_middleware(
     allow_methods=["*"],  # 允许所有方法
     allow_headers=["*"],  # 允许所有头
 )
-
-#
-# @app.exception_handler(ValueError)
-# async def value_error_exception_handler(request: Request, exc: ValueError):
-#     return JSONResponse(
-#         status_code=400,
-#         content={"message": str(exc)},
-#     )
 
 app.include_router(common_router, prefix="/api/common")
 app.include_router(mat_detail_router, prefix="/api/mat_detail")

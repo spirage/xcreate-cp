@@ -3,28 +3,27 @@
 from core.database import *
 
 
+# 0618 project_id 改为 project_code
 def process_ace_ba_bb():
     exec_command("drop table if exists ace_ba_bb")
     exec_command("""
-    create table ace_ba_bb as 
-select c.项目编码 project_code, c.项目名称 project_name,
+create table ace_ba_bb as 
+select a.project_code, (select x.项目名称 from para_project x where x.项目编码=a.project_code limit 1) project_name,
        a.product_code, b.product_name,  
        b.wt_recycle, b.amount_recycle,
        sum(a.mat_wt) mat_wt,  
        sum(a.mat_wt) / (select sum(x.mat_wt) from aca_db x where x.cost_center=a.cost_center and x.product_code=a.product_code) ratio_wt_in_product,
        null project_wt_recycle, null project_amount_recycle
 from aca_db a,
-     acd_系数设置后指标统计_左 b,
-     para_project c
+     acd_系数设置后指标统计_左 b
 where a.cost_center=b.cost_center_code
   and a.product_code=b.product_code
   and b.ratio_recycle is not null 
-  and a.project_id = c.项目序号
-group by c.项目编码, c.项目名称, b.cost_center_code, a.product_code, b.product_name, b.wt_recycle, b.amount_recycle
+group by 1, 2, 3, 4, 5, 6
 order by 3, 1
     """)
     exec_command("""
-    update ace_ba_bb as a 
+update ace_ba_bb as a 
 set project_wt_recycle = wt_recycle * ratio_wt_in_product,
     project_amount_recycle = amount_recycle * ratio_wt_in_product
     """)
@@ -33,7 +32,7 @@ set project_wt_recycle = wt_recycle * ratio_wt_in_product,
 def process_ace_bc():
     exec_command("drop table if exists ace_bc")
     exec_command("""
-    create table ace_bc as 
+create table ace_bc as 
 select '中间试验品回收' 类型, product_code 户号代码, product_name 户号名称, 
        project_code 研发编号, (select 项目名称 from para_project x where x.项目编码=project_code limit 1) 研发名称,
        project_wt_recycle 回收重量, ratio_wt_in_product 重量占比, project_amount_recycle 回收金额
@@ -41,28 +40,27 @@ from ace_ba_bb
     """)
 
 
+# 0618 project_id 改为 project_code
 def process_ace_ca_cb():
     exec_command("drop table if exists ace_ca_cb")
     exec_command("""
-    create table ace_ca_cb as 
-select c.项目编码 project_code, c.项目名称 project_name,
+create table ace_ca_cb as 
+select a.project_code, (select x.项目名称 from para_project x where x.项目编码=a.project_code limit 1) project_name,
        a.product_code, b.product_name,  
        b.wt_inventory_transfer, b.amount_inventory_transfer, 
        sum(a.mat_wt) mat_wt,  
        sum(a.mat_wt) / (select sum(x.mat_wt) from aca_db x where x.cost_center=a.cost_center and x.product_code=a.product_code) ratio_wt_in_product,
        null project_wt_inventoryrd, null project_amount_inventoryrd
 from aca_db a,
-     acd_系数设置后指标统计_左 b,
-     para_project c
+     acd_系数设置后指标统计_左 b
 where a.cost_center=b.cost_center_code
   and a.product_code=b.product_code
   and b.wt_inventory_transfer is not null 
-  and a.project_id = c.项目序号
 group by 1, 2, 3, 4, 5, 6
 order by 3, 1
     """)
     exec_command("""
-    update ace_ca_cb as a 
+update ace_ca_cb as a 
 set project_wt_inventoryrd = wt_inventory_transfer * ratio_wt_in_product,
     project_amount_inventoryrd = amount_inventory_transfer * ratio_wt_in_product
     """)
@@ -71,7 +69,7 @@ set project_wt_inventoryrd = wt_inventory_transfer * ratio_wt_in_product,
 def process_ace_cc():
     exec_command("drop table if exists ace_cc")
     exec_command("""
-    create table ace_cc as 
+create table ace_cc as 
 select '研发产品入库' 类型, product_code 户号代码, product_name 户号名称, 
        project_code 研发编号, (select 项目名称 from para_project x where x.项目编码=project_code limit 1) 研发名称,
        project_wt_inventoryrd 入库重量, ratio_wt_in_product 重量占比, project_amount_inventoryrd 入库金额
@@ -91,7 +89,7 @@ from ace_ca_cb
 def process_acf_ad_voucher_instorage_consume():
     exec_command("drop table if exists acf_ad_初始凭证_入库消耗")
     exec_command("""
-    create table acf_ad_初始凭证_入库消耗 as
+create table acf_ad_初始凭证_入库消耗 as
 select * from voucher_entry 
 where 凭证号码 in (select voucher_no from tmp_semi_product_disposal)
     """)
@@ -100,7 +98,7 @@ where 凭证号码 in (select voucher_no from tmp_semi_product_disposal)
 def process_acf_ad_splitted_instorage_consume():
     exec_command("drop table if exists acf_ad_分配后入库消耗")
     exec_command("""
-    create table acf_ad_分配后入库消耗 as
+create table acf_ad_分配后入库消耗 as
 select * from voucher_splitted 
 where 凭证号码 in (select voucher_no from tmp_semi_product_disposal)
     """)
@@ -109,7 +107,7 @@ where 凭证号码 in (select voucher_no from tmp_semi_product_disposal)
 def process_acf_bb_consume_orig():
     exec_command("drop table if exists acf_bb_consume_orig")
     exec_command("""
-    create table acf_bb_consume_orig as
+create table acf_bb_consume_orig as
 select * from voucher_entry a
 where ( 会计科目中文名称 = '生产成本-基本生产-原料消耗' 
         and 凭证号码 in (select voucher_no from tmp_semi_product_disposal) 
@@ -126,10 +124,10 @@ where a.凭证号码 in (select voucher_no from tmp_semi_product_disposal)
     """)
 
 
-def process_acf_acf_ba_instorage_orig():
+def process_acf_ba_instorage_orig():
     exec_command("drop table if exists acf_ba_instorage_orig")
     exec_command("""
-    create table acf_ba_instorage_orig as
+create table acf_ba_instorage_orig as
 select * from voucher_entry a
 where 凭证号码 in (select voucher_no from tmp_semi_product_disposal)
   and "index" not in (select "index" from acf_bb_consume_orig)
@@ -137,10 +135,36 @@ order by a.参号, 户号, 借贷
     """)
 
 
+# 0618 新增 入库转消耗接口
+def transfer_instorage_to_consume(index):
+    if index is None or index < 0:
+        raise ValueError("[入库凭证索引号] 参数值 不在合理范围")
+    query = "select 1 from acf_ba_instorage_orig where \"index\" = " + str(index)
+    row = exec_query(query).fetchone()
+    tmp = row[0]
+    if tmp is None:
+        raise ValueError("[入库凭证索引号] 参数值 在初始入库凭证中不存在")
+    exec_command("insert into acf_bb_consume_orig select * from acf_ba_instorage_orig where \"index\" = " + str(index))
+    exec_command("delete from acf_ba_instorage_orig where \"index\" = " + str(index))
+
+
+# 0618 新增 消耗转入库接口
+def transfer_consume_to_instorage(index):
+    if index is None or index < 0:
+        raise ValueError("[凭证索引号] 参数值 不在合理范围")
+    query = "select 1 from acf_bb_consume_orig where \"index\" = " + str(index)
+    row = exec_query(query).fetchone()
+    tmp = row[0]
+    if tmp is None:
+        raise ValueError("[凭证索引号] 参数值 在初始消耗凭证中不存在")
+    exec_command("insert into acf_ba_instorage_orig select * from acf_bb_consume_orig where \"index\" = " + str(index))
+    exec_command("delete from acf_bb_consume_orig where \"index\" = " + str(index))
+
+
 def process_acf_bc_instorage_sum():
     exec_command("drop table if exists acf_bc_instorage_sum")
     exec_command("""
-    create table acf_bc_instorage_sum as 
+create table acf_bc_instorage_sum as 
 select 凭证摘要, 借贷, 会计科目代码, 会计科目中文名称, 户号, 户号名称, 参号, 参号名称, sum(本币金额) 本币金额, sum(数量) 数量
 from acf_ba_instorage_orig
 group by 1,2,3,4,5,6,7,8
@@ -150,7 +174,7 @@ group by 1,2,3,4,5,6,7,8
 def process_acf_bd_consume_sum():
     exec_command("drop table if exists acf_bd_consume_sum")
     exec_command("""
-    create table acf_bd_consume_sum as
+create table acf_bd_consume_sum as
 select 凭证摘要, 借贷, 会计科目代码, 会计科目中文名称, 户号, 户号名称, 参号, 参号名称, sum(本币金额) 本币金额, sum(数量) 数量
 from acf_bb_consume_orig
 group by 1,2,3,4,5,6,7,8
@@ -160,7 +184,7 @@ group by 1,2,3,4,5,6,7,8
 def process_acf_ca_instorage_horizontal():
     exec_command("drop table if exists tmp_acf_ca_instorage_horizontal")
     exec_command("""
-    create table tmp_acf_ca_instorage_horizontal as 
+create table tmp_acf_ca_instorage_horizontal as 
 select rowid groupno, a.会计科目代码, a.会计科目中文名称 借方会计科目, a.户号 产副品户号, a.户号名称 产副品户名, a.本币金额 借方金额, a.数量 借方数量, (select distinct cost_center_code from map_product_account b where a.户号=b.product_code) 借方成本中心代码, (select distinct cost_center_name from map_product_account b where a.户号=b.product_code) 借方成本中心名称, null 贷方金额合计, 
        null 户号, null 户号名称, null 主原料参号, null 主原料参号名称, null 主原料金额, null 主原料对应的产副品代码, null 主原料对应的产副品名称
 from acf_bc_instorage_sum a
@@ -231,6 +255,20 @@ order by flowno
 
 
 def process_acf_da_instorage_adjust():
+    exec_command("drop table if exists stat_product")
+    exec_command("""
+create table stat_product as 
+select b.product_code, 
+       sum(b.rd_amount) product_ramount, 
+       sum(b.rd_amount*coalesce(b.ratio_adjust,1)) product_ramount_adjusted, 
+       sum(b.rd_consume) product_rconsume
+from map_ccenter_caccount_svoucher a,
+     map_project_product_account b
+where a.voucher_type in ('PT-1','ZS-1','TS-1','TS-2')
+  and a.cost_center_code = b.cost_center_code
+  and a.cost_account_code = b.cost_account_code
+group by 1
+    """)
     exec_command("drop table if exists acf_da_instorage_adjust")
     exec_command("""
 create table acf_da_instorage_adjust as 

@@ -82,3 +82,64 @@ from voucher_merged
     """)
 
 
+def get_voucher_attach_vno():
+    query = "select distinct 凭证号码 voucher_no from voucher_merged where 会计科目代码 like '5301%'"
+    cur = exec_query(query)
+    rows = cur.fetchall()
+    data = [dict(zip(tuple(column[0] for column in cur.description), row)) for row in rows]
+    return data
+
+
+def get_voucher_attach_tabtitle(voucher_no):
+    if voucher_no is None or voucher_no == '':
+        raise ValueError("参数值不在合理范围")
+    query = """
+select distinct voucher_no, sign, raccount_code, sign||raccount_code tab_id, case when sign='p' then raccount_name else raccount_name||'回收' end tab_name
+from (
+select 凭证号码 voucher_no,
+       case when 本币金额>=0 then 'p' else 'n' end sign,
+       会计科目代码 raccount_code,  
+       replace('研发项目'||'-'||replace(会计科目中文名称, rtrim(会计科目中文名称, replace(会计科目中文名称, '-', '')), ''), '中间试验制造费', '试验费') raccount_name
+from voucher_merged
+where 会计科目代码 like '5301%'
+  and 凭证号码 = '"""+voucher_no+"""' )    
+    """
+    cur = exec_query(query)
+    rows = cur.fetchall()
+    data = [dict(zip(tuple(column[0] for column in cur.description), row)) for row in rows]
+    return data
+
+
+def get_voucher_attach_tabcontent(voucher_no, raccount_code, sign):
+    if voucher_no is None or voucher_no == '' or raccount_code is None or not raccount_code.startswith('5301') or sign is None or sign not in ('p', 'n'):
+        raise ValueError("参数值不在合理范围")
+    query = """
+select project_code, project_name, orig_ref_name cost_element, 
+       case when orig_wt<>'0' then amount/(orig_amount/orig_wt) 
+            when orig_ref_code in ('8000000','8000050','8000051','8000052','8000053','8000054','8000055','8000056','8000057','8000077','8000078') then amount/(orig_amount/720)
+            else null end quantity,
+       case when orig_wt<>'0' then orig_amount/orig_wt
+            when orig_ref_code in ('8000000','8000050','8000051','8000052','8000053','8000054','8000055','8000056','8000057','8000077','8000078') then orig_amount/720
+            else null end unit_price,
+       case when orig_wt<>'0' then '吨'
+            when orig_ref_code in ('8000000','8000050','8000051','8000052','8000053','8000054','8000055','8000056','8000057','8000077','8000078') then '小时'
+            else null end unit,            
+       amount rd_amount
+from (
+select 户号 project_code, 户号名称 project_name, 
+       (select 参号 from voucher_entry b where b."index"=a.orig_rowno) orig_ref_code,
+       (select 参号名称 from voucher_entry b where b."index"=a.orig_rowno) orig_ref_name,
+       (select 本币金额 from voucher_entry b where b."index"=a.orig_rowno) orig_amount,
+       (select 数量 from voucher_entry b where b."index"=a.orig_rowno) orig_wt,
+       本币金额 amount
+from voucher_merged a
+where 会计科目代码 like '5301%'
+  and 凭证号码 = '"""+voucher_no+"""' 
+  and 会计科目代码 = '"""+raccount_code+"""'
+  and ( ('"""+sign+"""'='p' and 本币金额>=0) or ('"""+sign+"""'='n' and 本币金额<0) )  )  
+    """
+    print(query)
+    cur = exec_query(query)
+    rows = cur.fetchall()
+    data = [dict(zip(tuple(column[0] for column in cur.description), row)) for row in rows]
+    return data

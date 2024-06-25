@@ -136,13 +136,32 @@ async def get_acf_ad_splitted_instorage_consume():
         return fail(24, str(ex))
 
 
-@ba_mat_rd_router.get("/get_acf_bb_consume_orig", tags=["3.3.2.1 研发物料核算"])
-async def get_acf_bb_consume_orig():
+# 0618 新增 将原本在 get_acf_bb_consume_orig 和 get_acf_ba_instorage_orig 两个接口中 处理数据的部分 统一放至本接口执行
+@ba_mat_rd_router.get("/process_orig_consume_instorage", tags=["3.3.2.1 研发物料核算"])
+async def process_orig_consume_instorage():
     """
-    acf_bb_初始凭证-消耗
+    <b>处理初始消耗凭证和初始入库凭证接口</b> <br>
+    将原本在 get_acf_bb_consume_orig 和 get_acf_ba_instorage_orig 两个接口中 处理数据的部分 统一放至本接口执行 <br>
+    get_acf_bb_consume_orig 和 get_acf_ba_instorage_orig 保留获取数据的功能
     """
     try:
         ba_mat_rd_service.process_acf_bb_consume_orig()
+        ba_mat_rd_service.process_acf_ba_instorage_orig()
+        return ok()
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_mat_rd_router.get("/get_acf_bb_consume_orig", tags=["3.3.2.1 研发物料核算"])
+async def get_acf_bb_consume_orig():
+    """
+    <b>获取 acf_bb_初始凭证-消耗</b>
+    """
+    try:
         data = db.get_table('acf_bb_consume_orig', 1, 500)
         return ok(data)
     except sqlite3.OperationalError as oe:
@@ -153,15 +172,57 @@ async def get_acf_bb_consume_orig():
         return fail(24, str(ex))
 
 
-@ba_mat_rd_router.get("/get_acf_acf_ba_instorage_orig", tags=["3.3.2.1 研发物料核算"])
-async def get_acf_acf_ba_instorage_orig():
+@ba_mat_rd_router.get("/get_acf_ba_instorage_orig", tags=["3.3.2.1 研发物料核算"])
+async def get_acf_ba_instorage_orig():
     """
-    acf_ba_初始凭证-入库
+    <b>获取 acf_ba_初始凭证-入库</b>
     """
     try:
-        ba_mat_rd_service.process_acf_acf_ba_instorage_orig()
         data = db.get_table('acf_ba_instorage_orig', 1, 500)
         return ok(data)
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+# 0618 新增 入库转消耗接口 和 消耗转入库接口
+class Index(BaseModel):
+    index: Union[int, None] = -1
+
+
+@ba_mat_rd_router.post("/transfer_instorage_to_consume", tags=["3.3.2.1 研发物料核算"])
+async def transfer_instorage_to_consume(index: Index):
+    """
+    <b>入库转消耗接口</b> <br>
+    在 acf_ba_初始凭证-入库页面点击 转消耗 按钮后调用本接口 <br>
+    将 acf_ba_初始凭证-入库 中凭证通过 凭证索引号 转入 acf_bb_初始凭证-消耗 <br>
+    执行完本接口后可以调用 get_acf_ba_instorage_orig 接口查看当前初始入库凭证数据
+    """
+    try:
+        ba_mat_rd_service.transfer_instorage_to_consume(index.index)
+        return ok()
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_mat_rd_router.post("/transfer_consume_to_instorage", tags=["3.3.2.1 研发物料核算"])
+async def transfer_consume_to_instorage(index: Index):
+    """
+    <b>消耗转入库接口</b> <br>
+    在 acf_bb_初始凭证-消耗 页面点击 转入库 按钮后调用本接口 <br>
+    将 acf_bb_初始凭证-消耗 中凭证通过 凭证索引号 转入 acf_ba_初始凭证-入库 <br>
+    执行完本接口后可以调用 get_acf_bb_consume_orig 接口查看当前初始消耗凭证数据
+    """
+    try:
+        ba_mat_rd_service.transfer_consume_to_instorage(index.index)
+        return ok()
     except sqlite3.OperationalError as oe:
         logger.error("数据库操作异常：" + str(oe))
         return fail(21, "数据库操作异常：" + str(oe))

@@ -2,13 +2,11 @@ services:
   xcp:
     build:
       context: ./
-      dockerfile: Dockerfile
-    image: xcpserver
-    container_name: xcp
-    ports:
-      - "7980:7980"
+      dockerfile: Df-pub
+    image: xcp-package
+    container_name: xcp-pkg
     volumes:
       - /etc/localtime:/etc/localtime
+      - package.sh:/src/package.sh
     environment:
       - TZ=Asia/Shanghai
-    network_mode: bridge

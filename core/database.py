@@ -3,6 +3,8 @@ import io
 import math
 
 # from core.config import *
+from sqlalchemy import create_engine
+
 from core.log import *
 import sqlite3
 import os
@@ -106,15 +108,16 @@ def load_excel(file, table_name):
 #         load_excel(os.path.join(file[0], file[1]), file[1].split(".")[0])
 
 
-async def import_through_mem(file_uploaded, table_name, import_index=True):
+async def import_through_mem(file_uploaded, table_name, import_index=True, rename_index=False):
     logger.info("通过内存导入表 [" + table_name + "]")
     bytes_io = io.BytesIO()
     bytes_io.write(await file_uploaded.read())
     bytes_io.seek(0)
     df = pd.read_excel(bytes_io, dtype=str)
     exec_command("delete from " + table_name)
-    #if import_index:
-        #df = df.reset_index(drop=False).rename(columns={'index': 'rowno'})
+    if not import_index and rename_index:
+        df = df.reset_index(drop=False).rename(columns={'index': 'row_no'})
+    # df.columns = [col.strip('"') for col in df.columns]
     df.to_sql(table_name, conn, if_exists="append", index=import_index)
 
 
@@ -127,10 +130,12 @@ async def import_through_mem(file_uploaded, table_name, import_index=True):
 #     df.to_excel(file, index=False, engine='openpyxl')
 
 
-def export_through_mem(table_name):
+def export_through_mem(table_name, exclude=None):
     logger.info("通过内存导出表 [" + table_name + "]")
     query = "select * from " + table_name
     df = pd.read_sql_query(query, conn)
+    if exclude is not None:
+        del df[exclude]
     excel_bytes_io = io.BytesIO()
     with pd.ExcelWriter(excel_bytes_io, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)

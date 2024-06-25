@@ -1,0 +1,12 @@
+services:
+  pkg:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: app-package
+    container_name: app-pkg
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - ./src:/src
+    environment:
+      - TZ=Asia/Shanghai

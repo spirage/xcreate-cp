@@ -1,0 +1,11 @@
+FROM debian:11-slim
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+RUN apt-get update && apt-get install -y supervisor
+COPY app /app
+WORKDIR /app
+COPY supervisord.conf /etc/supervisord.conf
+EXPOSE 7980
+WORKDIR /
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]
+

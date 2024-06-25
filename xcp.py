@@ -1,17 +1,20 @@
 # -*- coding: UTF-8 -*-
+import time
 
 from core.database import *
-import service.ba_mat_prod_service as service
+import service.mat_detail_service as mat_service
 
 
 if __name__ == '__main__':
     logger.info('软件开始运行')
     time_start = time.time()
     #import_table("para_voucher_summary_transfer")
-    export_table("code_cost_account")
+    #export_table("code_cost_account")
     #get_mat_detail()
-    #mat_service.gen_mat_detail()
-    service.process_recalculate()
+    mat_service.gen_mat_detail()
+    #mat_service.set_mat_group()
+    #mat_service.fill_mat_detail()
+    #service.process_recalculate()
     #fill_mat_track()
     #tag_mat_group()
 
