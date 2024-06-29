@@ -65,7 +65,7 @@ def process_stat_project_wt():
 create table stat_project_wt as 
 select 项目编码, 项目名称, sum(重量临界值) 项目设置重量, sum(匹配重量) 项目匹配重量
 from para_project
-group by  1, 2    
+group by  1, 2
     """)
 
 

@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-from service.mat_detail_service import *
+import service.common_service as common_service
 from core.response import *
 from fastapi.routing import APIRouter
 from typing import Union
@@ -8,16 +8,25 @@ import core.database as db
 
 common_router = APIRouter()
 
-#
-# @common_router.get("/init_data", tags=["2 通用接口"])
-# async def init_data():
-#     """
-#     初始化数据
-#     """
-#     db.import_code_tables()
-#     db.import_para_tables()
-#     db.import_orig_tables()
-#     return ok()
+
+class Param(BaseModel):
+     acc_entity: Union[str, None] = None
+     acc_period: Union[str, None] = None
+
+
+@common_router.post("/init_data", tags=["2 通用接口"])
+async def init_data(param: Param):
+    """
+    <b>初始化或重新初始化数据</b> <br>
+    功能：<br>
+       设置CP核心处理单元的当前会计主体和会计期并同时重置工作日和数据库 <br>
+    参数：<br>
+       acc_entity: 会计主体 一般为公司名称 例如 ***集团公司 <br>
+       acc_period: 会计期 格式为年月字符串 例如 202312
+    """
+    common_service.init_data(param.acc_entity, param.acc_period)
+    return ok()
+
 #
 #
 # class Table(BaseModel):

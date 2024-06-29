@@ -1,5 +1,60 @@
 # -*- coding: UTF-8 -*-
 from core.database import *
+import random
+import itertools
+
+
+def generate_random_with_bias(weights):
+    choices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    return random.choices(choices, weights=weights, k=1)[0]
+
+
+def generate_random_integers(count, sum_value):
+    if count <= 0 or sum_value <= 0 or sum_value > count*8:
+        raise ValueError("参数值不在合理范围")
+    ratio = sum_value/(count*8)
+    weights = [2 * 4, 1, 1, 1, 4, 4, 16 * 1, 16 * 1, 16 * 2, 0]
+    weights[0] = 2 * 4 / ratio
+    weights[1] = 1
+    weights[2] = 1
+    weights[3] = 1 * 1 * 1 / ratio
+    weights[4] = 1 * 1 * 1 / ratio
+    weights[5] = 1 * 1 * 1 / ratio
+    weights[6] = 16 * 2 * ratio
+    weights[7] = 16 * 2 * ratio
+    weights[8] = 16 * 16 * ratio
+    weights[9] = 0
+    # print(weights)
+    numbers = []
+    i = 0
+    while i < count-1:
+        numbers.append(generate_random_with_bias(weights))
+        i += 1
+        if i == count-1 and (sum_value - sum(numbers) < 0 or sum_value - sum(numbers) > 8):
+            numbers = []
+            i = 0
+    numbers.append(sum_value - sum(numbers))
+    return numbers
+
+
+def gen_staff_manhour_detail():
+    cur = exec_query("select count(*) from sys_workday")
+    workday_count = cur.fetchone()[0]
+    workdays = []
+    if workday_count > 0:
+        cur = exec_query("select day from sys_workday")
+        rows = cur.fetchall()
+        workdays = [int(row[0]) for row in rows]
+    manhour_detail = []
+    cur = exec_query("select staff_no, project_code, manhour_total from tmp_manhour_total")
+    for row in cur.fetchall():
+        random_integers = generate_random_integers(workday_count, row[2])
+        day_hours = list(zip(workdays, random_integers))
+        man_hours = [[row[0], row[1], day, hour] for day, hour in day_hours]
+        manhour_detail += man_hours
+
+    df = pd.DataFrame(manhour_detail, columns=['staff_no', 'project_code', 'day', 'hour'])
+    df.to_sql('tmp_manhour_detail', conn, if_exists="replace", index=False)
 
 
 def gen_voucher_entry():
@@ -78,7 +133,7 @@ where a.户号=b.code
     """)
 
 
-# 0604 修改 不需人工该选择，自动该选择摘要含有“半成品产出抛帐”的最后一次（行号最大）凭证号，将其放入tmp_semi_product_disposal
+# 0604 修改 不需人工该选择，自动选择摘要含有“半成品产出抛帐”的最后一次（行号最大）凭证号，将其放入tmp_semi_product_disposal
 def gen_tmp_semi_product_disposal():
     logger.info("生成tmp_semi_product_disposal")
     exec_command("drop table if exists tmp_semi_product_disposal")
@@ -207,7 +262,7 @@ set voucher_type = case when cost_account_code in (select cost_account_code from
                         when cost_account_code in ('5100000','5200000') then 'TS-1'
                         when rd_amount = 0 then 'TG-LZ'
                         when voucher_retrospect is not null then 'ZS-1'                            
-                        else 'PT-'||(length(voucher_incurred) - length(replace(voucher_incurred,',','')) + 1)
+                        else 'PT-1' -- 0629 修改 ||(length(voucher_incurred) - length(replace(voucher_incurred,',','')) + 1)
                    end                   
 where rd_amount is not null
     """)
@@ -357,7 +412,7 @@ from tmp_svoucher_project_raccount
 group by 1,2,3,4,5,6,7,8,9
     """)
     exec_command("""
-    insert into map_svoucher_project_raccount
+insert into map_svoucher_project_raccount
 select voucher_selected, cost_account_code, voucher_type, project_code, ratio_adjust, project_ramount, project_rconsume, '5301010020020' raccount_code, '研发支出-费用化支出-自筹资金-中间试验制造费' raccount_name, project_ramount - sum(account_ramount) account_ramount, project_rconsume - sum(account_ramount) account_rconsume
 from map_svoucher_project_raccount
 where voucher_type = 'ZS-1'
@@ -504,18 +559,21 @@ group by 1
     """)
 
 
+# 根据 0628 测试文档 修改
 def process_stat_voucher_balance():
     exec_command("drop table if exists stat_voucher_balance")
     exec_command("""
 create table stat_voucher_balance as 
 select ( select 凭证号码 from voucher_entry b where b."index" = a.voucher_selected ) voucher_no, 
-       voucher_selected, cost_account_name, cost_center_name, cost_account_name, amount_selected, rd_amount, 
+       voucher_selected, cost_account_name, cost_center_name, cost_account_name, 
+       case when instr(cost_account_name,'回收')>0 then -1*amount_selected else amount_selected end amount_selected, rd_amount, 
        ( select sum(b.rd_amount*coalesce(b.ratio_adjust,1)) from map_project_product_account b where b.cost_center_code=a.cost_center_code and b.cost_account_code=a.cost_account_code ) rd_amount_adjusted,
        null balance,
        null balance_ratio
 from map_ccenter_caccount_svoucher a
-where a.voucher_selected is not not null 
+where a.voucher_selected is not null 
   and a.rd_amount is not null 
+  and a.voucher_type <> 'TG-BZD'
     """)
     exec_command("""
 update stat_voucher_balance 

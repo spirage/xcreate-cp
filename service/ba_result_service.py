@@ -4,9 +4,9 @@ from core.database import *
 
 
 def process_voucher_recalculated():
-    exec_command("drop table if exists vucher_recalculated")
+    exec_command("drop table if exists voucher_recalculated")
     exec_command("""
-create table vucher_recalculated as 
+create table voucher_recalculated as 
 select 'FB_调整消耗凭证' a来源表, rowid b原行次, null d会计期, null e凭证日期, null f凭证号码, 凭证摘要 g凭证摘要, 借贷 h借贷, 会计科目代码 i会计科目代码, 会计科目中文名称 j会计科目中文名称, 户号 k户号, 户号名称 l户号名称, 参号 m参号, 参号名称 n参号名称, 本币金额 o原始金额, 数量 p原始数量, amount_adjusted r调整后金额, 数量 s调整后数量, r最终金额 t最终金额, s最终重量 u最终数量
 from acg_fb_调整消耗凭证
 union all
@@ -36,7 +36,7 @@ select 'ACG_'||substr(a来源表,1,2), b原行次,
         case when a来源表 = 'FD_调后转主营成本凭证' then e凭证日期 else (select 凭证日期 from voucher_entry where 凭证号码 in (select voucher_no from tmp_semi_product_disposal) limit 1) end,
         case when a来源表 = 'FD_调后转主营成本凭证' then f凭证号码 else (select voucher_no from tmp_semi_product_disposal limit 1) end,
         g凭证摘要,h借贷,i会计科目代码,j会计科目中文名称,k户号,l户号名称,m参号,n参号名称,null,null,null,t最终金额,null,u最终数量
-from vucher_recalculated
+from voucher_recalculated
 where coalesce(f凭证号码,'') not in (select voucher_no from tmp_semi_product_disposal)
     """)
     exec_command("""
@@ -83,7 +83,7 @@ from voucher_merged
 
 
 def get_voucher_attach_vno():
-    query = "select distinct 凭证号码 voucher_no from voucher_merged where 会计科目代码 like '5301%'"
+    query = "select distinct 凭证号码 voucher_no from voucher_splitted where 会计科目代码 like '5301%'"
     cur = exec_query(query)
     rows = cur.fetchall()
     data = [dict(zip(tuple(column[0] for column in cur.description), row)) for row in rows]
@@ -100,7 +100,7 @@ select 凭证号码 voucher_no,
        case when 本币金额>=0 then 'p' else 'n' end sign,
        会计科目代码 raccount_code,  
        replace('研发项目'||'-'||replace(会计科目中文名称, rtrim(会计科目中文名称, replace(会计科目中文名称, '-', '')), ''), '中间试验制造费', '试验费') raccount_name
-from voucher_merged
+from voucher_splitted
 where 会计科目代码 like '5301%'
   and 凭证号码 = '"""+voucher_no+"""' )    
     """
@@ -132,7 +132,7 @@ select 户号 project_code, 户号名称 project_name,
        (select 本币金额 from voucher_entry b where b."index"=a.orig_rowno) orig_amount,
        (select 数量 from voucher_entry b where b."index"=a.orig_rowno) orig_wt,
        本币金额 amount
-from voucher_merged a
+from voucher_splitted a
 where 会计科目代码 like '5301%'
   and 凭证号码 = '"""+voucher_no+"""' 
   and 会计科目代码 = '"""+raccount_code+"""'

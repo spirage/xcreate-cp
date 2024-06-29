@@ -26,7 +26,7 @@ async def get_voucher_recalculated():
     """
     try:
         ba_result_service.process_voucher_recalculated()
-        data = db.get_table('vucher_recalculated', 1, 2000)
+        data = db.get_table('voucher_recalculated', 1, 2000)
         return ok(data)
     except sqlite3.OperationalError as oe:
         logger.error("数据库操作异常：" + str(oe))

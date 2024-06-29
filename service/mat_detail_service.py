@@ -67,8 +67,14 @@ order by cost_center desc, account_title_item desc
     exec_command("drop table if exists mat_track_detail")
     exec_command("""
 create table mat_track_detail as
-select row_number() over(order by mat_group_no, pass_backlog_seq_no) as row_no,*
-  from tmp_mat_track_detail order by mat_group_no, pass_backlog_seq_no
+select row_number() over(order by mat_group_no, pass_backlog_seq_no) as row_no,
+       mat_group_no,mat_track_no,mat_no,in_mat_no,pass_backlog_seq_no,whole_backlog_code,whole_backlog_name,
+       cost_center, (select name from code_cost_center b where b.code=a.cost_center) cost_center_name,
+       product_code, (select name from code_product b where b.code=a.product_code) product_name,
+       ba_object_sub_1,
+       account_title_item, (select 账务代码名称 from code_account_title b where b."*财务代码"=a.account_title_item) account_title_name,
+       prod_date,event_related_id,mat_wt,project_code,multi_object,first_in,first_out,in_storage
+  from tmp_mat_track_detail a order by mat_group_no, pass_backlog_seq_no
     """)
     exec_command("drop table if exists tmp_mat_track_detail")
     exec_command("create index ix_mat_track_detail_cost_center on mat_track_detail(cost_center)")
