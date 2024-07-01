@@ -271,13 +271,11 @@ where 类别='4本期结存'
                  and b.借方户号=a.产副品代码)    
     """)
     # 2.6 单价重算第6步
-    exec_command("""
-drop table if exists acg_fa_调整入库凭证    
-    """)
+    exec_command("drop table if exists acg_fa_调整入库凭证")
     exec_command("""
 create table acg_fa_调整入库凭证 as 
 select *, null p重算单价调整金额, null q重算单价调整重量, null r转库存计价调整金额, null s最终金额, null t最终重量
-from acf_da_instorage_adjust    
+from acf_da_instorage_adjust
     """)
     exec_command("""
 drop table if exists acg_df_自制半成品转库存计价        
@@ -464,7 +462,8 @@ update acg_fa_调整入库凭证 as a
     """)
     exec_command("""
 update acg_fa_调整入库凭证 as a 
-   set s最终金额 = amount_adjusted + coalesce(p重算单价调整金额,0) + coalesce(r转库存计价调整金额,0),
+   --0630 修改 amount_adjusted 为空时处理
+   set s最终金额 = coalesce(amount_adjusted,0) + coalesce(p重算单价调整金额,0) + coalesce(r转库存计价调整金额,0),
        t最终重量 = coalesce(数量,0) + coalesce(q重算单价调整重量,0)    
     """)
 

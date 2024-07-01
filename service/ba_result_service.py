@@ -19,6 +19,12 @@ union all
 select 'FD_调后转主营成本凭证' a来源表, rowid b原行次, 会计期, 凭证日期, 凭证号码, 凭证摘要, 借贷, 会计科目代码, 会计科目中文名称, 户号, 户号名称, 参号, 参号名称, b原金额, c原重量, null, null, 本币金额, 数量
 from acg_fd_调后转主营成本凭证
     """)
+#     exec_command("""
+#     --0630 修改 所有拆分后凭证金额和数量进行舍入
+# # update voucher_recalculated
+# #    set t最终金额 = round(t最终金额,2),
+# #        u最终数量 = round(u最终数量,4)
+# #     """)
 
 
 def process_voucher_merged():
@@ -32,7 +38,8 @@ from voucher_splitted
 where 凭证号码 not in (select voucher_no from tmp_semi_product_disposal)
 union all
 select 'ACG_'||substr(a来源表,1,2), b原行次, 
-        case when a来源表 = 'FD_调后转主营成本凭证' then d会计期   else '202312' end,
+        --0630 修改 会计期处理方式
+        case when a来源表 = 'FD_调后转主营成本凭证' then d会计期 else (select value from sys_config where key='sys.acc_period') end,
         case when a来源表 = 'FD_调后转主营成本凭证' then e凭证日期 else (select 凭证日期 from voucher_entry where 凭证号码 in (select voucher_no from tmp_semi_product_disposal) limit 1) end,
         case when a来源表 = 'FD_调后转主营成本凭证' then f凭证号码 else (select voucher_no from tmp_semi_product_disposal limit 1) end,
         g凭证摘要,h借贷,i会计科目代码,j会计科目中文名称,k户号,l户号名称,m参号,n参号名称,null,null,null,t最终金额,null,u最终数量
@@ -51,6 +58,36 @@ update voucher_merged as a
    set 凭证摘要 = ( select transfer from para_voucher_summary_transfer b where b.summary=a.凭证摘要 and b.account=a.会计科目中文名称 and (b.amount is null or (b.amount='>0' and a.本币金额>0) or (b.amount='<0' and a.本币金额<0)) )
  where exists ( select 1 from para_voucher_summary_transfer b where b.summary=a.凭证摘要 and b.account=a.会计科目中文名称 and (b.amount is null or (b.amount='>0' and a.本币金额>0) or (b.amount='<0' and a.本币金额<0)) )  
     """)
+    # --0630 修改 所有拆分后凭证金额和数量进行舍入
+#     exec_command("""
+# update voucher_merged
+#    set 本币金额 = round((round(本币金额,2) + (select round(round(sum(本币金额),2) - sum(round(本币金额,2)),2)
+#                                        from voucher_merged
+#                                       where orig_table = 'ACG_FC'
+#                                         and 借贷='2')),2)
+# where orig_table='ACG_FC'
+#   and orig_rowno=(select orig_rowno
+#                     from voucher_merged
+#                    where orig_table = 'ACG_FC'
+#                      and 借贷='2'
+#                    order by 本币金额-round(本币金额,2) desc limit 1)
+#
+#     """)
+#     exec_command("""
+# update voucher_merged
+#    set 本币金额 = round(本币金额,2)
+# where orig_table='ACG_FC'
+#   and orig_rowno<>(select orig_rowno
+#                     from voucher_merged
+#                    where orig_table = 'ACG_FC'
+#                      and 借贷='2'
+#                    order by 本币金额-round(本币金额,2) desc limit 1)
+#     """)
+#     exec_command("""
+# update voucher_merged
+#    set 本币金额 = round(本币金额,2)
+#  --where orig_table<>'ACG_FC'
+#     """)
 
 
 def process_stat_voucher():
@@ -62,7 +99,11 @@ create table stat_voucher as
 select 凭证号码,  
        ( select 凭证摘要 from voucher_merged b where b.orig_rowno=(select min(a.orig_rowno) from voucher_merged c where c.凭证号码=a.凭证号码) ) 摘要, 
        count(*) 行数, 
-       sum(case when 借贷='1' then 本币金额 else 0 end) 借方金额, sum(case when 借贷='2' then 本币金额 else 0 end) 贷方金额, 
+       --0630 修改 所有拆分后凭证金额和数量进行舍入 后调整
+       sum(case when 借贷='1' then 本币金额 else 0 end) 借方金额, 
+       --round(sum(case when 借贷='1' then 本币金额 else 0 end),2) 借方金额, 
+       sum(case when 借贷='2' then 本币金额 else 0 end) 贷方金额, 
+       --round(sum(case when 借贷='2' then 本币金额 else 0 end),2) 贷方金额, 
        round(sum(case when 借贷='1' then 本币金额 else 0 end) - sum(case when 借贷='2' then 本币金额 else 0 end),2) 借贷差
 from voucher_merged a
 group by 凭证号码    
@@ -138,7 +179,6 @@ where 会计科目代码 like '5301%'
   and 会计科目代码 = '"""+raccount_code+"""'
   and ( ('"""+sign+"""'='p' and 本币金额>=0) or ('"""+sign+"""'='n' and 本币金额<0) )  )  
     """
-    print(query)
     cur = exec_query(query)
     rows = cur.fetchall()
     data = [dict(zip(tuple(column[0] for column in cur.description), row)) for row in rows]

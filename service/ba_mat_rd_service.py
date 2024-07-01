@@ -264,7 +264,7 @@ select b.product_code,
        sum(b.rd_consume) product_rconsume
 from map_ccenter_caccount_svoucher a,
      map_project_product_account b
-where a.voucher_type in ('PT-1','ZS-1','TS-1','TS-2')
+where a.voucher_type in ('PT','ZS-1','TS-1','TS-2')
   and a.cost_center_code = b.cost_center_code
   and a.cost_account_code = b.cost_account_code
 group by 1
@@ -277,7 +277,8 @@ select *, null amount_to_adjust, null amount_adjusted from acf_bc_instorage_sum
     exec_command("""
 update acf_da_instorage_adjust as a 
    set amount_to_adjust = coalesce((select product_ramount_adjusted from stat_product b where b.product_code=a.户号),0) ,
-       amount_adjusted = ( a.本币金额 - coalesce((select product_ramount_adjusted from stat_product b where b.product_code=a.户号),0) )
+       --0630 修改 amount_adjusted 为空时处理
+       amount_adjusted = coalesce( ( a.本币金额 - coalesce((select product_ramount_adjusted from stat_product b where b.product_code=a.户号),0) ), 0 )
  where a.借贷='1'
    and a.会计科目中文名称 like '自制半成品-%'
     """)

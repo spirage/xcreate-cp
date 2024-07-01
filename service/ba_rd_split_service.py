@@ -139,12 +139,13 @@ def gen_tmp_semi_product_disposal():
     exec_command("drop table if exists tmp_semi_product_disposal")
     exec_command("""
 create table tmp_semi_product_disposal as 
- select 凭证号码 voucher_no
+select 凭证号码 voucher_no
 from orig_voucher_entry 
 where "index" = (select max("index") 
                    from orig_voucher_entry 
                   where instr(凭证摘要,'半成品产出抛帐')>0)    
     """)
+
 
 # 根据0606测试文档 0615 讨论确定 0618 修改 amount_incurred发生凭证金额 和 voucher_incurred发生凭证 去掉判断条件 "不能是之前后台表sheet 凭证导入中记录的凭证号(ACH1000008)"
 def process_map_ccenter_caccount_svoucher():
@@ -257,17 +258,17 @@ on  a.cost_center_code = b.cost_center_code
 and a.cost_account_code = b.cost_account_code
     """)
     exec_command("""
-    update map_ccenter_caccount_svoucher
+update map_ccenter_caccount_svoucher
 set voucher_type = case when cost_account_code in (select cost_account_code from para_reimbursement_preparation) then 'TG-BZD'
                         when cost_account_code in ('5100000','5200000') then 'TS-1'
                         when rd_amount = 0 then 'TG-LZ'
                         when voucher_retrospect is not null then 'ZS-1'                            
-                        else 'PT-1' -- 0629 修改 ||(length(voucher_incurred) - length(replace(voucher_incurred,',','')) + 1)
+                        else 'PT' -- 0629 修改 ||(length(voucher_incurred) - length(replace(voucher_incurred,',','')) + 1)
                    end                   
 where rd_amount is not null
     """)
     exec_command("""
-    update map_ccenter_caccount_svoucher as a 
+update map_ccenter_caccount_svoucher as a 
 set voucher_type = 'TS-2'
 where exists (select 1 from map_ccenter_caccount_svoucher b 
                where b.voucher_type = 'TS-1' 
@@ -275,23 +276,31 @@ where exists (select 1 from map_ccenter_caccount_svoucher b
                  and a.cost_account_code='8000050')
     """)
     exec_command("""
-    update map_ccenter_caccount_svoucher as a
-set voucher_selected = (select "index" from 
-                       (select "index", row_number()over(order by sign(本币金额) desc,abs(本币金额) desc) rn from voucher_entry
+update map_ccenter_caccount_svoucher as a
+set voucher_selected = (select row_no from 
+                       (select row_no, row_number()over(order by sign(amount) desc,abs(amount) desc) rn from 
+                        --0630 修改 C类凭证金额取反
+                        (
+                        select "index" row_no, case when instr(tag_special,'C')>0 then -1*本币金额 else 本币金额 end amount from voucher_entry                         
                         where instr(','||a.voucher_incurred||',', ','||"index"||',') > 0
                           and instr(coalesce(tag_special,'null'),'A')=0
                           and instr(coalesce(tag_special,'null'),'B')=0
+                        )
                        ) where rn = 1),
-    amount_selected =  (select 本币金额 from 
-                       (select 本币金额, row_number()over(order by sign(本币金额) desc,abs(本币金额) desc) rn from voucher_entry
+    amount_selected =  (select amount from 
+                       (select amount, row_number()over(order by sign(amount) desc,abs(amount) desc) rn from 
+                        --0630 修改 C类凭证金额取反
+                        (
+                        select case when instr(tag_special,'C')>0 then -1*本币金额 else 本币金额 end amount from voucher_entry                         
                         where instr(','||a.voucher_incurred||',', ','||"index"||',') > 0
                           and instr(coalesce(tag_special,'null'),'A')=0
                           and instr(coalesce(tag_special,'null'),'B')=0
+                        )
                        ) where rn = 1)
 where cost_account_code not in ('5100000','5200000')
     """)
     exec_command("""
-    update map_ccenter_caccount_svoucher as a
+update map_ccenter_caccount_svoucher as a
 set voucher_selected = (select voucher_selected from map_ccenter_caccount_svoucher b
                         where b.cost_center_code=a.cost_center_code
                           and b.cost_account_code='8000050'),
@@ -301,7 +310,7 @@ set voucher_selected = (select voucher_selected from map_ccenter_caccount_svouch
 where cost_account_code in ('5100000','5200000')
     """)
     exec_command("""
-    update map_ccenter_caccount_svoucher as a 
+update map_ccenter_caccount_svoucher as a 
 set rd_ratio = rd_amount/amount_selected
 where coalesce(amount_selected,0)<>0
     """)
@@ -361,8 +370,9 @@ def select_voucher(rowno, voucher_index):
     exec_command("""
 update map_ccenter_caccount_svoucher 
    set voucher_selected = """ + str(voucher_index) + """,
-       amount_selected = (select 本币金额 from voucher_entry where "index" = """ + str(voucher_index) + """),
-       rd_ratio = rd_amount/(select 本币金额 from voucher_entry where "index" = """ + str(voucher_index) + """)
+       --0630 修改 C类凭证金额取反
+       amount_selected = (select case when instr(tag_special,'C')>0 then -1*本币金额 else 本币金额 end from voucher_entry where "index" = """ + str(voucher_index) + """),
+       rd_ratio = rd_amount/(select case when instr(tag_special,'C')>0 then -1*本币金额 else 本币金额 end from voucher_entry where "index" = """ + str(voucher_index) + """)
  where rowno = """ + str(rowno))
 
 
@@ -370,13 +380,13 @@ def process_voucher_splitted():
     logger.info("acc_处理拆分凭证")
     exec_command("drop table if exists tmp_svoucher_project_raccount")
     exec_command("""
-    create table tmp_svoucher_project_raccount as
+create table tmp_svoucher_project_raccount as
 select x.voucher_selected, x.cost_account_code, x.voucher_type, ratio_retrospect, project_code, ratio_adjust, project_ramount, project_rconsume, ratio_account, raccount_code, raccount_name  from 
 (
 select a.voucher_selected, a.cost_account_code, a.voucher_type, a.amount_retrospect/a.amount_incurred ratio_retrospect, b.project_code, b.ratio_adjust, sum(b.rd_amount) project_ramount, sum(b.rd_consume) project_rconsume
 from map_ccenter_caccount_svoucher a,
      map_project_product_account b
-where a.voucher_type in ('PT-1','ZS-1','TS-1','TS-2')
+where a.voucher_type in ('PT','ZS-1','TS-1','TS-2')
   and a.cost_center_code = b.cost_center_code
   and a.cost_account_code = b.cost_account_code
 group by 1,2,3,4,5,6
@@ -388,12 +398,12 @@ with x as (
 select a.voucher_selected, a.cost_account_code, a.voucher_type, b."index" index_retrospect, b.本币金额 amount, b.会计科目中文名称 account_name, 
        case when a.voucher_type='ZS-1' and ((b.会计科目中文名称 like '制造费用-职工薪酬-%' and  b.会计科目中文名称 <> '制造费用-职工薪酬-职工福利费') or b.会计科目中文名称='制造费用-职工福利费-交通补贴') then '人员费用-职工薪酬'
             when a.voucher_type='ZS-1' then '人员费用-福利费' 
-            when a.voucher_type in ('TS-1','TS-2','PT-1') then a.cost_account_name
+            when a.voucher_type in ('TS-1','TS-2','PT') then a.cost_account_name
        end cost_account_name
 from map_ccenter_caccount_svoucher a,
      voucher_entry b
 where (a.voucher_type='ZS-1' and instr(','||a.voucher_retrospect||',', ','||b."index"||',')>0) 
-   or (a.voucher_type in ('PT-1','TS-2') and a.voucher_selected=b."index")
+   or (a.voucher_type in ('PT','TS-2') and a.voucher_selected=b."index")
    or (a.voucher_type='TS-1' and instr(','||a.voucher_incurred||',', ','||b."index"||',')>0)
 ) select voucher_selected, cost_account_code, voucher_type, account_name, cost_account_name, amount/(select sum(amount) from x as x2 where x2.voucher_selected=x.voucher_selected and x2.cost_account_code=x.cost_account_code and x2.voucher_type=x.voucher_type) ratio_account from x
 ) a, para_caccount_raccount b 
@@ -406,7 +416,7 @@ order by x.voucher_selected, x.cost_account_code, project_code, raccount_code
     """)
     exec_command("drop table if exists map_svoucher_project_raccount")
     exec_command("""
-    create table map_svoucher_project_raccount as 
+create table map_svoucher_project_raccount as 
 select voucher_selected, cost_account_code, voucher_type, project_code, ratio_adjust, project_ramount, project_rconsume, raccount_code, raccount_name, sum(project_ramount*coalesce(ratio_retrospect,1)*ratio_account) account_ramount, sum(project_rconsume*coalesce(ratio_retrospect,1)*ratio_account) account_rconsume
 from tmp_svoucher_project_raccount
 group by 1,2,3,4,5,6,7,8,9
@@ -421,32 +431,48 @@ group by 1,2,3,4,5,6,7
     exec_command("update map_svoucher_project_raccount set account_ramount = account_ramount*coalesce(ratio_adjust,1)")
     exec_command("drop table if exists tmp_voucher_splitted")
     exec_command("""
-    create table tmp_voucher_splitted as 
+create table tmp_voucher_splitted as 
 select voucher_selected orig_rowno, cost_account_code orig_caccount, voucher_type orig_vtype, ratio_adjust, 
-       b.会计期, b.凭证日期, b.凭证号码, b.凭证摘要, b.借贷, 
+       b.会计期, b.凭证日期, b.凭证号码, b.凭证摘要, 
+       --0630 修改 C类凭证拆出的凭证借贷取1
+       case when instr(b.tag_special,'C')>0 then '1' else b.借贷 end 借贷, 
        a.raccount_code 会计科目代码, a.raccount_name 会计科目中文名称, a.project_code 户号, (select 项目名称 from para_project x where x.项目编码=a.project_code limit 1) 户号名称,
        null 参号, null 参号名称, null 附加类别一, null 附加类别二,
-       b.币种, a.account_ramount 本币金额, 0 外币金额, a.account_rconsume 数量
+       b.币种, 
+       --0630 修改 所有拆分后凭证金额和数量进行舍入
+       a.account_ramount 本币金额,
+       --round(a.account_ramount,2) 本币金额, 
+       0 外币金额, 
+       --0630 修改 所有拆分后凭证金额和数量进行舍入
+       a.account_rconsume 数量
+       --round(a.account_rconsume,4) 数量
   from map_svoucher_project_raccount a,
        voucher_entry b
 where a.voucher_selected = b."index"
     """)
     exec_command("""
-    insert into tmp_voucher_splitted
+insert into tmp_voucher_splitted
 select a."index", null, null, null,
        a.会计期, a.凭证日期, a.凭证号码, a.凭证摘要, a.借贷, 
        a.会计科目代码, a.会计科目中文名称, a.户号, a.户号名称,
        a.参号, a.参号名称, a.附加类别一, a.附加类别二,
-       a.币种, (a.本币金额 - b.amount_splitted), a.外币金额, (a.数量 - b.wt_splitted)
+       a.币种, 
+       --0630 修改 C类凭证金额取反       
+       case when instr(a.tag_special,'C')>0 then -1 *( -1 * a.本币金额 - b.amount_splitted )
+            else (a.本币金额 - b.amount_splitted) end, 
+       a.外币金额, 
+       --0630 修改 C类凭证金额取反
+       case when instr(a.tag_special,'C')>0 then -1 *( -1 * a.数量 - b.wt_splitted )
+            else (a.数量 - b.wt_splitted) end
 from voucher_entry a,
      (select orig_rowno, sum(本币金额) amount_splitted, sum(数量) wt_splitted from tmp_voucher_splitted group by orig_rowno) b
 where a."index" = b.orig_rowno
     """)
     exec_command("drop table if exists voucher_splitted")
     exec_command("""    
-    create table voucher_splitted as 
-    select row_number()over(order by orig_rowno, orig_caccount, orig_vtype) rowno, * 
-    from tmp_voucher_splitted
+create table voucher_splitted as 
+select row_number()over(order by orig_rowno, orig_caccount, orig_vtype) rowno, * 
+from tmp_voucher_splitted
     """)
 
 
@@ -503,7 +529,8 @@ def process_stat_after_adjusted_left():
 create table acd_系数设置后指标统计_左 as
 select a.cost_center_code, a.cost_center_name, a.product_code, a.product_name, 
        b.ratio_recycle, 
-       ( b.ratio_recycle * (select sum(mat_wt) from mat_track_detail where account_title_item='31' and cost_center<>' ') * (select ratio_recycle from para_recycle where cost_center_code='all' and product_code='all') ) wt_recycle,
+       --0630 调整首笔投入算法，增加标识研发项目非空条件
+       ( b.ratio_recycle * (select coalesce(sum(mat_wt),0) from mat_track_detail where account_title_item='31' and cost_center<>' ' and project_code is not null) * (select ratio_recycle from para_recycle where cost_center_code='all' and product_code='all') ) wt_recycle,
        null amount_recycle,
        (select mat_wt from aca_dd x where x.cost_center=a.cost_center_code and x.product_code=a.product_code) wt_inventory_transfer,
        null amount_inventory_transfer,
@@ -515,7 +542,8 @@ select a.cost_center_code, a.cost_center_name, a.product_code, a.product_name,
 from map_product_account_rd a 
 left join para_recycle b on a.cost_center_code=b.cost_center_code and a.product_code=b.product_code
 left join (select cost_center_code, product_code, sum(case when rn=1 then month_output else 0 end) month_output, sum(month_cost) month_cost 
-             from ( select cost_center_code, product_code, ba_object_sub_1, month_output, month_cost, row_number() over(partition by cost_center_code, product_code, ba_object_sub_1) rn from map_product_account_rd ) 
+             --0630 修改 数据源从产副品加工调整为成本中心产副品构成
+             from ( select substr(成本中心,1,instr(成本中心,'-')-1) cost_center_code, substr(产副品代码,1,instr(产副品代码,'-')-1) product_code, 辅助核算对象 ba_object_sub_1, 本月产量 month_output, 本月总成本 month_cost, row_number() over(partition by substr(成本中心,1,instr(成本中心,'-'-1)), substr(产副品代码,1,instr(产副品代码,'-')-1), 辅助核算对象) rn from orig_product_cost ) 
              group by 1,2
           ) c on a.cost_center_code=c.cost_center_code and a.product_code=c.product_code
 group by 1,2,3,4
@@ -565,8 +593,7 @@ def process_stat_voucher_balance():
     exec_command("""
 create table stat_voucher_balance as 
 select ( select 凭证号码 from voucher_entry b where b."index" = a.voucher_selected ) voucher_no, 
-       voucher_selected, cost_account_name, cost_center_name, cost_account_name, 
-       case when instr(cost_account_name,'回收')>0 then -1*amount_selected else amount_selected end amount_selected, rd_amount, 
+       voucher_selected, cost_account_name, cost_center_name, cost_account_name,amount_selected, rd_amount, 
        ( select sum(b.rd_amount*coalesce(b.ratio_adjust,1)) from map_project_product_account b where b.cost_center_code=a.cost_center_code and b.cost_account_code=a.cost_account_code ) rd_amount_adjusted,
        null balance,
        null balance_ratio
