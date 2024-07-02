@@ -530,7 +530,7 @@ create table acd_系数设置后指标统计_左 as
 select a.cost_center_code, a.cost_center_name, a.product_code, a.product_name, 
        b.ratio_recycle, 
        --0630 调整首笔投入算法，增加标识研发项目非空条件
-       ( b.ratio_recycle * (select coalesce(sum(mat_wt),0) from mat_track_detail where account_title_item='31' and cost_center<>' ' and project_code is not null) * (select ratio_recycle from para_recycle where cost_center_code='all' and product_code='all') ) wt_recycle,
+       ( b.ratio_recycle * (select coalesce(sum(mat_wt),0) from mat_track_detail where account_title_item='31' and (cost_center<>' ' and cost_center<>'' and cost_center is not null) and project_code is not null) * (select ratio_recycle from para_recycle where cost_center_code='all' and product_code='all') ) wt_recycle,
        null amount_recycle,
        (select mat_wt from aca_dd x where x.cost_center=a.cost_center_code and x.product_code=a.product_code) wt_inventory_transfer,
        null amount_inventory_transfer,

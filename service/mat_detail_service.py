@@ -55,7 +55,7 @@ select -1 , b.mat_group_no, 'SJH:'||a.event_related_id, null, b.mat_no, b.pass_b
       ) b      
 where a.event_related_id = b.event_related_id 
   and a.account_title_item in ('01', '30')
-  and (a.cost_center = ' ' or a.product_code not in ('1H021', '1K013', '1K014')) 
+  and ((a.cost_center = ' ' or a.cost_center = '' or a.cost_center is null) or a.product_code not in ('1H021', '1K013', '1K014')) 
 group by b.mat_group_no, a.event_related_id, b.mat_no, b.pass_backlog_seq_no, a.whole_backlog_code, a.cost_center, a.product_code, a.ba_object_sub_1, a.account_title_item 
 ) 
 where mat_wt<>0 

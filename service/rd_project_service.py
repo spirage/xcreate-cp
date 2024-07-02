@@ -14,13 +14,13 @@ select row_number()over() row_no, "index" project_index, 项目编码 project_co
            from ( select d.mat_group_no, group_concat(d.cost_center || ',' || d.product_code, '-') tgtj, sum(mat_wt) group_wt, min(prod_date) group_start_date
                     from mat_track_detail d 
                    where d.account_title_item = '01'
-                     and d.cost_center <> ' '
+                     and ( d.cost_center <> ' ' and d.cost_center <> '' and d.cost_center is not null )
                    group by d.mat_group_no ) x, 
                 para_project y 
           where exists( select 1 from mat_track_detail
                          where mat_group_no = x.mat_group_no 
                            and account_title_item = '01'
-                           and cost_center <> ' ' 
+                           and ( cost_center <> ' ' and cost_center <> '' and cost_center is not null ) 
                            and instr(y.牌号信息,ba_object_sub_1) > 0) 
             and x.tgtj = y.通过序号1 || coalesce('-' || y.通过序号2, '') || coalesce('-' || y.通过序号3, '') || coalesce('-' || y.通过序号4, '') || coalesce('-' || y.通过序号5, '') || coalesce('-' || y.通过序号6, '') || coalesce('-' || y.通过序号7, '') || coalesce('-' || y.通过序号8, '') || coalesce('-' || y.通过序号9, '') || coalesce('-' || y.通过序号10, '') 
             and x.group_start_date >= y.开始日期) 
@@ -106,9 +106,9 @@ from
 (
 select a.project_code, a.mat_group_no,
        a.row_no out_row_no,
-       case when a.first_out='Y' then 'N' else (case when a.cost_center<>' ' and a.account_title_item='01' then 'N' when a.cost_center=' ' and a.account_title_item='01' then 'Y' end) end as in_storage, 
+       case when a.first_out='Y' then 'N' else (case when (a.cost_center<>' ' and a.cost_center<>'' and a.cost_center is not null) and a.account_title_item='01' then 'N' when a.cost_center=' ' and a.account_title_item='01' then 'Y' end) end as in_storage, 
        a.cost_center out_cost_center, a.product_code out_product_code, a.ba_object_sub_1 out_object, 
-       case when a.first_out='Y' then '生产成本结转' else (case when a.cost_center<>' ' and a.account_title_item='01' then '入库消耗凭证' when a.cost_center=' ' and a.account_title_item='01' then '入库凭证' end) end voucher_type, 
+       case when a.first_out='Y' then '生产成本结转' else (case when (a.cost_center<>' ' and a.cost_center<>'' and a.cost_center is not null) and a.account_title_item='01' then '入库消耗凭证' when a.cost_center=' ' and a.account_title_item='01' then '入库凭证' end) end voucher_type, 
        a.pass_backlog_seq_no out_seq_no, a.mat_wt out_wt, 
        a.account_title_item out_account_title, a.first_in 
 from mat_track_detail a
@@ -166,7 +166,7 @@ select --0618 (select 项目编码 from para_project b where b.项目序号=a.pr
 from mat_track_detail a     
 where a.project_code is not null
   and a.account_title_item = '01'
-  and a.cost_center <> ' '
+  and (a.cost_center<>' ' and a.cost_center<>'' and a.cost_center is not null)
 group by 1, 2, 3, 4
     """)
     fill_special_product()
@@ -209,7 +209,7 @@ select * from mat_track_detail
 where project_code is not null
   -- 0618 and mat_group_no not in (select mat_group_no from para_inventory_transfer) 
   and coalesce(in_storage,'N') = 'N'
-  and account_title_item='01' and cost_center<>' '
+  and account_title_item='01' and ( cost_center<>' ' or cost_center<>'' or cost_center is null )
   and instr( (select group_concat(out_rows,',') from semi_product_in_out_sum where type='A 普通类'), row_no ) > 0
     """)
 
@@ -230,7 +230,7 @@ where in_storage = 'Y'       -- 0618 a.mat_group_no = b.mat_group_no
   and c.transfer is not null
   and c.transfer = d.code
   and a.account_title_item='01' 
-  and a.cost_center=' '
+  and ( a.cost_center=' ' or a.cost_center='' or a.cost_center is null )
     """)
 
 

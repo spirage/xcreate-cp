@@ -2,7 +2,7 @@
 
 from core.database import *
 import calendar
-from datetime import date, timedelta
+from datetime import timedelta
 import holidays
 from datetime import datetime
 import pandas as pd
@@ -54,7 +54,7 @@ def reset_database():
     logger.info("重置数据库")
     cur = exec_query("""
 select case when name like 'para_%' or name like 'orig_%' then 'delete from '||name
-            else 'drop table '||name 
+            else 'delete from '||name 
        end action
 from sqlite_master
 where type='table'
@@ -62,6 +62,7 @@ where type='table'
 order by 1    
     """)
     for row in cur:
+        print(str(row[0]))
         exec_command(str(row[0]))
 
     exec_command("vacuum")
