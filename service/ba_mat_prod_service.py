@@ -327,7 +327,8 @@ where a.户号 = b.户号
     exec_command("""
 update acg_dc_半成品生产收发存表 as a
 set 数量=(select coalesce(研发占用量（投入）,0) + 调整后生产成本重量 from acg_dd_消耗单价重算 b where b.贷方会计科目代码=a.会计科目代码 and b.贷方户号=a.产副品代码),
-    金额=(select coalesce(调整后研发金额,0) + 调整后生产成本金额 from acg_dd_消耗单价重算 b where b.贷方会计科目代码=a.会计科目代码 and b.贷方户号=a.产副品代码)
+    --0618 修改 修复BUG CP-0002 未汇总问题
+    金额=(select sum(coalesce(调整后研发金额,0) + 调整后生产成本金额) from acg_dd_消耗单价重算 b where b.贷方会计科目代码=a.会计科目代码 and b.贷方户号=a.产副品代码)
 where 类别='5本期出库'
   and exists (select 1 from tmp_current_link_in_flow b 
                where b.借方会计科目代码=a.会计科目代码 
