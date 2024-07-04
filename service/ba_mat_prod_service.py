@@ -137,9 +137,9 @@ from acg_dd_消耗单价重算
     """)
     exec_command("""
 update acg_dc_半成品生产收发存表 as a
-set 数量=(select 期末数量 from inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码),
-    金额=(select 期末金额 from inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码),
-    单价=(select 期末单价 from inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码)
+set 数量=(select 期末数量 from para_inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码),
+    金额=(select 期末金额 from para_inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码),
+    单价=(select 期末单价 from para_inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码)
 where 类别='1期初信息'   
     """)
     exec_command("""
@@ -377,9 +377,9 @@ from acg_df_自制半成品转库存计价
     """)
     exec_command("""
 update acg_ea_当期库存商品收发存表 as a
-set 数量=(select 期末数量 from inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码),
-    金额=(select 期末金额 from inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码),
-    单价=(select 期末单价 from inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码)
+set 数量=(select 期末数量 from para_inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码),
+    金额=(select 期末金额 from para_inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码),
+    单价=(select 期末单价 from para_inventory_summary b where b.会计科目代码=a.会计科目代码 and b.产副品代码=a.产副品代码)
 where 类别='1期初信息'    
     """)
     exec_command("""

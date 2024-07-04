@@ -75,8 +75,8 @@ async def tpl_inventory_summary():
     获取 acg_bb_上期收发存结果表 模板
     """
     try:
-        file_for_download = "inventory_summary.xlsx"
-        excel_content = db.export_through_mem("tpl_inventory_summary")
+        file_for_download = "para_inventory_summary.xlsx"
+        excel_content = db.export_through_mem("tpl_para_inventory_summary")
         response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
         return response
@@ -95,7 +95,7 @@ async def imp_inventory_summary(file: UploadFile = File(...)):
     """
     try:
         if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
-            await db.import_through_mem(file, "inventory_summary", False)
+            await db.import_through_mem(file, "para_inventory_summary", False)
             return ok()
         else:
             return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
