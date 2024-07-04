@@ -476,6 +476,17 @@ from tmp_voucher_splitted
     """)
 
 
+# 0704 新增 王坤群里联系增加成本科目和研发科目保留首次分配时数据需求
+def process_stat_raccount_orig():
+    exec_command("drop table if exists stat_raccount_orig")
+    exec_command("""
+create table stat_raccount_orig as 
+select raccount_code 研发科目编码, raccount_name 研发科目名称, sum(account_ramount) 研发金额
+from map_svoucher_project_raccount
+group by 1,2
+    """)
+
+
 def process_stat_raccount():
     exec_command("drop table if exists stat_raccount")
     exec_command("""
@@ -502,6 +513,24 @@ def process_stat_project():
 create table stat_project as
 select project_code 项目编号, (select 项目名称 from para_project b where b.项目编码=a.project_code limit 1) 项目名称,  raccount_code 研发科目编码, raccount_name 研发科目名称, sum(account_ramount) 研发科目金额, sum(account_ramount) / sum( sum(account_ramount) ) over (partition by project_code) 比例
 from map_svoucher_project_raccount a
+group by 1,2,3,4
+    """)
+
+
+# 0704 新增 王坤群里联系增加成本科目和研发科目保留首次分配时数据需求
+def process_stat_caccount_orig():
+    exec_command("drop table if exists stat_caccount_orig")
+    exec_command("""
+create table stat_caccount_orig as
+select cost_account_code 成本科目代码,  cost_account_name 成本科目名称, cost_center_code 成本中心代码, cost_center_name 成本中心名称,  
+       (select sum(account_ramount) from map_svoucher_project_raccount b where b.voucher_selected=a.voucher_selected group by b.voucher_selected) 研发金额,
+       (select sum(account_rconsume) from map_svoucher_project_raccount b where b.voucher_selected=a.voucher_selected group by b.voucher_selected) 研发消耗
+from map_ccenter_caccount_svoucher a
+where coalesce(a.rd_amount,0) <> 0 
+  and a.voucher_type not like 'TG-%'
+  and a.voucher_type not like 'TS-1'
+  and instr(a.cost_center_name, '来料加工') = 0
+  and instr(a.cost_center_name, '外销') = 0
 group by 1,2,3,4
     """)
 

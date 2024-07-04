@@ -272,7 +272,7 @@ group by 1
     exec_command("drop table if exists acf_da_instorage_adjust")
     exec_command("""
 create table acf_da_instorage_adjust as 
-select *, null amount_to_adjust, null amount_adjusted from acf_bc_instorage_sum
+select *, null amount_to_adjust, /*0703 修改 改为本币金额*/ 本币金额 amount_adjusted from acf_bc_instorage_sum
     """)
     exec_command("""
 update acf_da_instorage_adjust as a 
@@ -285,7 +285,8 @@ update acf_da_instorage_adjust as a
     exec_command("""
 update acf_da_instorage_adjust as a 
    set amount_to_adjust = coalesce((select 研发金额 from stat_caccount b where b.成本中心代码=a.户号 and b.成本科目代码=a.参号),0),
-       amount_adjusted = ( a.本币金额 - coalesce((select 研发金额 from stat_caccount b where b.成本中心代码=a.户号 and b.成本科目代码=a.参号),0) )
+       --0702 修改 amount_adjusted 为空时处理
+       amount_adjusted = coalesce( ( a.本币金额 - coalesce((select 研发金额 from stat_caccount b where b.成本中心代码=a.户号 and b.成本科目代码=a.参号),0) ), 0 )
  where a.借贷='2'
    and a.会计科目中文名称 like '生产成本-基本生产-结转'
     """)

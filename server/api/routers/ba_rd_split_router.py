@@ -389,6 +389,40 @@ async def get_voucher_splitted(page: Page):
         return fail(24, str(ex))
 
 
+# 0704 新增 王坤群里联系增加成本科目和研发科目保留首次分配时数据需求
+@ba_rd_split_router.get("/process_stat_raccount_orig", tags=["3.3.1 研发投入核算"])
+async def process_stat_raccount_orig():
+    """
+    处理 初始 acc_统计研发科目 首次分配时调用
+    """
+    try:
+        ba_rd_split_service.process_stat_raccount_orig()
+        return ok()
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+# 0704 新增 王坤群里联系增加成本科目和研发科目保留首次分配时数据需求
+@ba_rd_split_router.get("/get_stat_raccount_orig", tags=["3.3.1 研发投入核算"])
+async def get_stat_raccount_orig():
+    """
+    获取 初始 acc_统计研发科目 首次分配时调用
+    """
+    try:
+        data = db.get_table('stat_raccount_orig', 1, 500)
+        return ok(data)
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
 @ba_rd_split_router.get("/get_stat_raccount", tags=["3.3.1 研发投入核算"])
 async def get_stat_raccount():
     """
@@ -409,7 +443,7 @@ async def get_stat_raccount():
 @ba_rd_split_router.get("/process_stat_project_orig", tags=["3.3.1 研发投入核算"])
 async def process_stat_project_orig():
     """
-    处理 初始 统计_研发项目 首次分配时调用
+    处理 初始 acc_统计_研发项目 首次分配时调用
     """
     try:
         ba_rd_split_service.process_stat_project_orig()
@@ -425,7 +459,7 @@ async def process_stat_project_orig():
 @ba_rd_split_router.get("/get_stat_project_orig", tags=["3.3.1 研发投入核算"])
 async def get_stat_project_orig():
     """
-    获取 初始 统计_研发项目 首次分配时调用
+    获取 初始 acc_统计_研发项目 首次分配时调用
     """
     try:
         data = db.get_table('stat_project_orig', 1, 500)
@@ -455,10 +489,44 @@ async def get_stat_project():
         return fail(24, str(ex))
 
 
+# 0704 新增 王坤群里联系增加成本科目和研发科目保留首次分配时数据需求
+@ba_rd_split_router.get("/process_stat_caccount_orig", tags=["3.3.1 研发投入核算"])
+async def process_stat_caccount_orig():
+    """
+    处理 初始 acc_统计_成本元素 首次分配时调用
+    """
+    try:
+        ba_rd_split_service.process_stat_caccount_orig()
+        return ok()
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+# 0704 新增 王坤群里联系增加成本科目和研发科目保留首次分配时数据需求
+@ba_rd_split_router.get("/get_stat_caccount_orig", tags=["3.3.1 研发投入核算"])
+async def get_stat_caccount_orig():
+    """
+    获取 初始 acc_统计_成本元素 首次分配时调用
+    """
+    try:
+        data = db.get_table('stat_caccount_orig', 1, 500)
+        return ok(data)
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
 @ba_rd_split_router.get("/get_stat_caccount", tags=["3.3.1 研发投入核算"])
 async def get_stat_caccount():
     """
-    acc_统计_成本元素
+    acc_统计_成本元素 导入系数人工设置数据后调用 多次分配
     """
     try:
         ba_rd_split_service.process_stat_caccount()
