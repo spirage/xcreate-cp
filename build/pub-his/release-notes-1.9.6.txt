@@ -1,0 +1,36 @@
+XCreate CP单元 版本1.9.6 更新日志
+1 新增接口 process_stat_raccount_orig 处理 初始 acc_统计研发科目 首次分配时调用
+          get_stat_raccount_orig  获取 初始 acc_统计研发科目 首次分配时调用
+时间：7月4日
+处理：根据需求增加
+
+2 新增接口 process_stat_caccount_orig 处理 初始 acc_统计_成本元素 首次分配时调用
+          get_stat_caccount_orig 获取 初始 acc_统计_成本元素 首次分配时调用
+时间：7月4日
+处理：根据需求增加
+
+3 修改人员工资计算相关接口
+内容：对接口名称和数据库表名进行优化并将所有人员工资计算相关接口位置进行调整，调整至 3.3.1 研发投入核算（原研发分配核算）tpl_voucher_entry 获取原始凭证分录表模板 接口 之前。
+ 涉及
+tpl_para_staff 变更 改名并移动至此处 获取项目人员名单表模板
+imp_para_staff 变更 改名并移动至此处 导入项目人员名单表
+tpl_para_staff_salary 变更 改名并移动至此处 获取工资社保表模板
+imp_para_staff_salary 变更 改名并移动至此处 导入工资社保表
+tpl_para_staff_manhour 变更 改名并移动至此处 导出人员工时设置表模版
+imp_para_staff_manhour 变更 改名并移动至此处 导入人员工时设置表
+get_para_staff_manhour_detail 变更 改名并移动至此处 处理和获取人员工时设置明细表
+tpl_para_dept_celement 变更 移动至此处 导出人员单位与成本要素对照表模版
+imp_para_dept_celement 变更 移动至此处 导入人员单位与成本要素对照表
+tpl_para_ctype_raccount 变更 移动至此处 导出费用类型与研发科目对照表模版
+imp_para_ctype_raccount 变更 移动至此处 导入费用类型与研发科目对照表
+tpl_para_ctype_raccount 变更 移动至此处 导出费用类型与研发科目对照模版
+imp_para_ctype_raccount 变更 移动至此处 导入费用类型与研发科目对照
+get_manhou_detail变更 改名并移动至此处 处理和获取工时明细表
+get_salary_staff变更 改名并移动至此处 处理和获取研发人员人工分配表
+get_salary_project 变更 改名并移动至此处 处理和获取研发工资汇总表改名并移动至此处接口
+process_stat_raccount_orig 处理 初始 acc_统计研发科目 首次分配时调用
+get_stat_raccount_orig  获取 初始 acc_统计研发科目 首次分配时调用
+等 16 个接口。详情参考接口文档1.9.6
+时间：7月5日
+处理：优化调整
+

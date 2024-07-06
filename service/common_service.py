@@ -62,7 +62,6 @@ where type='table'
 order by 1    
     """)
     for row in cur:
-        print(str(row[0]))
         exec_command(str(row[0]))
 
     exec_command("vacuum")

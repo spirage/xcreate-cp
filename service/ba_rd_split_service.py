@@ -4,12 +4,46 @@ import random
 import itertools
 
 
-def generate_random_with_bias(weights):
+# 处理 人员工时设置 自动生成详情
+def process_para_staff_manhour_detail():
+    exec_command("drop table if exists para_staff_manhour_detail")
+    exec_command("""
+create table para_staff_manhour_detail as
+select staff_type, manhour_total, 
+       8*(select count(*) from sys_workday) manhour_workday, 
+       manhour_multi_ulimit, manhour_multi_llimit, ratio_rd, ratio_float, 
+       round(manhour_total*ratio_rd*(1+ratio_float)) manhour_uni_ulimit, 
+       round(manhour_total*ratio_rd*(1-ratio_float)) manhour_uni_llimit
+from para_staff_manhour    
+    """)
+
+
+# 生成 工时明细表 1总表
+def gen_tmp_manhour_total():
+    exec_command("drop table if exists tmp_manhour_total")
+    exec_command("""
+create table tmp_manhour_total as
+select staff_no, a.staff_type, a.project_code, a.project_name, a.project_ratio, 
+       case when a.project_ratio is null then b.manhour_uni_llimit else b.manhour_multi_llimit end lower,
+       case when a.project_ratio is null then b.manhour_uni_ulimit else b.manhour_multi_ulimit end upper, 
+       case when (select count(*) from para_staff x where x.staff_no=a.staff_no)>1 then 'Y' else 'N' end multi,
+       case when (select count(*) from para_staff x where x.staff_no=a.staff_no)=1 
+                 then abs(random() % (b.manhour_uni_ulimit-b.manhour_uni_llimit+1)) + b.manhour_uni_llimit
+            when (select count(*) from para_staff x where x.staff_no=a.staff_no)>1
+                 then round((abs(random() % (b.manhour_multi_ulimit-b.manhour_multi_llimit+1)) + b.manhour_multi_llimit) * a.project_ratio)
+            end manhour_total
+from para_staff a, 
+     para_staff_manhour_detail b 
+where a.staff_type = b.staff_type    
+    """)
+
+
+def gen_random_with_bias(weights):
     choices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     return random.choices(choices, weights=weights, k=1)[0]
 
 
-def generate_random_integers(count, sum_value):
+def gen_random_integers(count, sum_value):
     if count <= 0 or sum_value <= 0 or sum_value > count*8:
         raise ValueError("参数值不在合理范围")
     ratio = sum_value/(count*8)
@@ -28,7 +62,7 @@ def generate_random_integers(count, sum_value):
     numbers = []
     i = 0
     while i < count-1:
-        numbers.append(generate_random_with_bias(weights))
+        numbers.append(gen_random_with_bias(weights))
         i += 1
         if i == count-1 and (sum_value - sum(numbers) < 0 or sum_value - sum(numbers) > 8):
             numbers = []
@@ -37,7 +71,8 @@ def generate_random_integers(count, sum_value):
     return numbers
 
 
-def gen_staff_manhour_detail():
+# 生成 工时明细表 2明细
+def gen_tmp_manhour_detail():
     cur = exec_query("select count(*) from sys_workday")
     workday_count = cur.fetchone()[0]
     workdays = []
@@ -48,13 +83,97 @@ def gen_staff_manhour_detail():
     manhour_detail = []
     cur = exec_query("select staff_no, project_code, manhour_total from tmp_manhour_total")
     for row in cur.fetchall():
-        random_integers = generate_random_integers(workday_count, row[2])
+        random_integers = gen_random_integers(workday_count, row[2])
         day_hours = list(zip(workdays, random_integers))
         man_hours = [[row[0], row[1], day, hour] for day, hour in day_hours]
         manhour_detail += man_hours
 
     df = pd.DataFrame(manhour_detail, columns=['staff_no', 'project_code', 'day', 'hour'])
     df.to_sql('tmp_manhour_detail', conn, if_exists="replace", index=False)
+
+
+# 生成 工时明细表 3汇总
+def gen_manhour_detail():
+    exec_command("drop table if exists manhour_detail")
+    exec_command("""
+create table manhour_detail as 
+select a.project_code, a.project_name, a.staff_no, a.staff_name, a.staff_dept, a.staff_type, b.manhour_total, 
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=1) day1,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=2) day2,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=3) day3,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=4) day4,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=5) day5,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=6) day6,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=7) day7,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=8) day8,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=9) day9,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=10) day10,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=11) day11,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=12) day12,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=13) day13,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=14) day14,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=15) day15,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=16) day16,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=17) day17,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=28) day18,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=29) day19,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=20) day20,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=21) day21,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=22) day22,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=23) day23,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=24) day24,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=25) day25,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=26) day26,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=27) day27,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=28) day28,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=29) day29,
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=30) day30,   
+       (select hour from tmp_manhour_detail x where x.staff_no=a.staff_no and x.project_code=a.project_code and day=31) day31
+from para_staff a,
+     tmp_manhour_total b
+where trim(a.staff_no) = trim(b.staff_no)
+  and a.project_code = b.project_code    
+    """)
+
+
+# 处理 工时明细表
+def process_manhour_detail():
+    gen_tmp_manhour_total()
+    gen_tmp_manhour_detail()
+    gen_manhour_detail()
+
+
+# 研发人员人工分配表
+def process_salary_staff():
+    exec_command("drop table if exists salary_staff")
+    exec_command("""
+create table salary_staff as 
+select a.project_code, a.project_name, a.staff_no, a.staff_name, a.staff_dept, a.staff_type, 240 hour_total, b.manhour_total, salary_amount, insur_total, 
+       manhour_total/240*salary_amount rd_salary, manhour_total/240*insur_total rd_insur
+from para_staff a,
+     tmp_manhour_total b,
+     para_staff_salary c
+where a.staff_no = b.staff_no
+  and a.project_code = b.project_code
+  and trim(a.staff_no) = trim(c.staff_no)     
+    """)
+
+
+# 研发工资汇总
+def process_salary_project():
+    exec_command("drop table if exists salary_project")
+    exec_command("""
+create table salary_project as 
+with x as
+(select project_code, project_name, (select project_type from para_staff x where trim(x.staff_no)=trim(x.staff_no) and x.project_code=a.project_code) project_type, staff_dept,
+        sum(rd_salary) rd_salary, sum(rd_insur) rd_insur
+from salary_staff a
+group by 1,2,3,4)
+select project_code, project_name, '研发分配工资', z.raccount_code, y.celement_code, rd_salary amount from x, para_dept_celement y, para_ctype_raccount z where x.staff_dept = y.dept and z.cost_type='研发分配工资' and x.project_type=z.project_type
+union all 
+select project_code, project_name, '研发分配五险一金', z.raccount_code, y.celement_code, rd_insur amount from x, para_dept_celement y, para_ctype_raccount z where x.staff_dept = y.dept and z.cost_type='研发分配五险一金' and x.project_type=z.project_type
+order by 1,5    
+    """)
 
 
 def gen_voucher_entry():
