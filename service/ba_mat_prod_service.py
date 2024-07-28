@@ -277,9 +277,7 @@ create table acg_fa_调整入库凭证 as
 select *, null p重算单价调整金额, null q重算单价调整重量, null r转库存计价调整金额, null s最终金额, null t最终重量
 from acf_da_instorage_adjust
     """)
-    exec_command("""
-drop table if exists acg_df_自制半成品转库存计价        
-    """)
+    exec_command("drop table if exists acg_df_自制半成品转库存计价")
     exec_command("""
 create table acg_df_自制半成品转库存计价 as 
 select a.会计科目代码 贷方会计科目代码, a.会计科目中文名称 b贷方会计科目, a.户号 贷方户号, a.户号名称 c贷方户号名称, a.本币金额 d贷方金额, a.数量 e贷方重量, 
@@ -418,8 +416,9 @@ where a.户号 = b.户号
     """)
     exec_command("""
 update acg_ea_当期库存商品收发存表 as a
-set 数量=(select i借方重量 from acg_eb_库存商品销售计价 b where b.贷方会计科目代码=a.会计科目代码 and b.贷方户号=a.产副品代码),
-    金额=(select k新结转成本 from acg_eb_库存商品销售计价 b where b.贷方会计科目代码=a.会计科目代码 and b.贷方户号=a.产副品代码)
+--0718 修改 根据0716测试文档 数量和金额调整为合计数
+set 数量=(select sum(i借方重量) from acg_eb_库存商品销售计价 b where b.贷方会计科目代码=a.会计科目代码 and b.贷方户号=a.产副品代码),
+    金额=(select sum(k新结转成本) from acg_eb_库存商品销售计价 b where b.贷方会计科目代码=a.会计科目代码 and b.贷方户号=a.产副品代码)
 where 类别='4本期出库'    
     """)
     exec_command("""
@@ -471,9 +470,7 @@ update acg_fa_调整入库凭证 as a
 
 
 def process_acg_fb_adjust_consume_voucher():
-    exec_command("""
-drop table if exists acg_fb_调整消耗凭证    
-    """)
+    exec_command("drop table if exists acg_fb_调整消耗凭证")
     exec_command("""
 create table acg_fb_调整消耗凭证 as 
 select *, null p重算单价调整金额, null q重算单价调整重量, null r最终金额, null s最终重量
@@ -567,9 +564,7 @@ where 类型 = '产成品抛账'
 
 
 def process_acg_fe_inventory_summary():
-    exec_command("""
-drop table if exists acg_fe_当期收发存结果表    
-    """)
+    exec_command("""drop table if exists acg_fe_当期收发存结果表""")
     exec_command("""
 create table acg_fe_当期收发存结果表 as 
 select 'B-'||sum(case when 类别='1期初信息' then rowno else 0 end) 编码, 会计科目代码, 会计科目名称,  产副品代码, 产副品名称,

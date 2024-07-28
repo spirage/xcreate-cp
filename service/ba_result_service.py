@@ -19,12 +19,6 @@ union all
 select 'FD_调后转主营成本凭证' a来源表, rowid b原行次, 会计期, 凭证日期, 凭证号码, 凭证摘要, 借贷, 会计科目代码, 会计科目中文名称, 户号, 户号名称, 参号, 参号名称, b原金额, c原重量, null, null, 本币金额, 数量
 from acg_fd_调后转主营成本凭证
     """)
-#     exec_command("""
-#     --0630 修改 所有拆分后凭证金额和数量进行舍入
-# # update voucher_recalculated
-# #    set t最终金额 = round(t最终金额,2),
-# #        u最终数量 = round(u最终数量,4)
-# #     """)
 
 
 def process_voucher_merged():
@@ -58,54 +52,210 @@ update voucher_merged as a
    set 凭证摘要 = ( select transfer from para_voucher_summary_transfer b where b.summary=a.凭证摘要 and b.account=a.会计科目中文名称 and (b.amount is null or (b.amount='>0' and a.本币金额>0) or (b.amount='<0' and a.本币金额<0)) )
  where exists ( select 1 from para_voucher_summary_transfer b where b.summary=a.凭证摘要 and b.account=a.会计科目中文名称 and (b.amount is null or (b.amount='>0' and a.本币金额>0) or (b.amount='<0' and a.本币金额<0)) )  
     """)
-    # --0630 修改 所有拆分后凭证金额和数量进行舍入
-#     exec_command("""
-# update voucher_merged
-#    set 本币金额 = round((round(本币金额,2) + (select round(round(sum(本币金额),2) - sum(round(本币金额,2)),2)
-#                                        from voucher_merged
-#                                       where orig_table = 'ACG_FC'
-#                                         and 借贷='2')),2)
-# where orig_table='ACG_FC'
-#   and orig_rowno=(select orig_rowno
-#                     from voucher_merged
-#                    where orig_table = 'ACG_FC'
-#                      and 借贷='2'
-#                    order by 本币金额-round(本币金额,2) desc limit 1)
-#
-#     """)
-#     exec_command("""
-# update voucher_merged
-#    set 本币金额 = round(本币金额,2)
-# where orig_table='ACG_FC'
-#   and orig_rowno<>(select orig_rowno
-#                     from voucher_merged
-#                    where orig_table = 'ACG_FC'
-#                      and 借贷='2'
-#                    order by 本币金额-round(本币金额,2) desc limit 1)
-#     """)
-#     exec_command("""
-# update voucher_merged
-#    set 本币金额 = round(本币金额,2)
-#  --where orig_table<>'ACG_FC'
-#     """)
+
+
+def process_voucher_rounded():
+    # --0711 修改 所有拆分后凭证金额和数量进行舍入
+    exec_command("drop table if exists voucher_rounded")
+    exec_command("create table voucher_rounded as select * from voucher_merged")
+    # 1 ACD
+    exec_command("""
+    update voucher_rounded 
+       set 本币金额 = round(本币金额,2)
+    where orig_table  = 'ACD' 
+      and 会计科目代码 not like '5301%'    
+        """)
+    exec_command("""
+    update voucher_rounded as a
+       set 本币金额 = round(本币金额,2)
+    where orig_table  = 'ACD' 
+      and 会计科目代码 like '5301%'
+      and not exists (select 1 from (select 户号, 本币金额 from (
+                                                              select 户号, 本币金额, 
+                                                                     row_number() over (partition by orig_rowno order by abs(本币金额) desc) rn 
+                                                                from voucher_rounded a
+                                                               where orig_table = 'ACD'
+                                                                 and 会计科目代码 like '5301%'
+                                                                 and orig_rowno=a.orig_rowno
+                                                              ) where rn=1) x 
+                                where x.户号=a.户号 and x.本币金额=a.本币金额 )    
+        """)
+    exec_command("""
+    update voucher_rounded as a
+       set 本币金额 = (case when instr( (select tag_special from voucher_entry b where b."index" = a.orig_rowno), 'C' ) > 0
+                          then 
+                            round( 
+                                 (select 本币金额 from voucher_entry b where b."index" = a.orig_rowno)
+                               - (select 本币金额 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and 会计科目代码 not like '5301%')  
+                               + (select sum(本币金额) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and b.会计科目代码 like '5301%' and (b.户号<>a.户号 or b.本币金额<>a.本币金额))
+                            , 2 ) * (-1)
+                          else 
+                            round( 
+                                 (select 本币金额 from voucher_entry b where b."index" = a.orig_rowno)
+                               - (select 本币金额 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and 会计科目代码 not like '5301%')  
+                               - (select sum(本币金额) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and b.会计科目代码 like '5301%' and (b.户号<>a.户号 or b.本币金额<>a.本币金额))
+                            , 2 )
+                      end)                  
+    where orig_table  = 'ACD' 
+      and 会计科目代码 like '5301%'
+      and exists (select 1 from (select 户号, 本币金额 from (
+                                                          select 户号, 本币金额, 
+                                                                 row_number() over (partition by orig_rowno order by abs(本币金额) desc) rn 
+                                                            from voucher_rounded a
+                                                           where orig_table = 'ACD'
+                                                             and 会计科目代码 like '5301%'
+                                                             and orig_rowno=a.orig_rowno
+                                                          ) where rn=1) x 
+                          where x.户号=a.户号 and x.本币金额=a.本币金额 )    
+        """)
+    # 2.1 ACG_FA ACG_FC
+    exec_command("""
+    update voucher_rounded 
+       set 本币金额=round(本币金额,2)
+     where orig_table in ('ACG_FA', 'ACG_FC')
+       and 借贷='2'    
+        """)
+    exec_command("""
+    update voucher_rounded as a
+       set 本币金额=round(本币金额,2)
+     where orig_table in ('ACG_FA', 'ACG_FC')
+       and 借贷='1'  
+       and not exists (select 1 from (select orig_table, orig_rowno from (
+                                                                      select orig_table, orig_rowno, 本币金额, 
+                                                                             row_number() over (partition by orig_table order by 本币金额 desc) rn 
+                                                                        from voucher_rounded a
+                                                                       where orig_table in ('ACG_FA', 'ACG_FC')
+                                                                         and 借贷='1'
+                                                                     ) where rn=1) x 
+                                where x.orig_table=a.orig_table and x.orig_rowno=a.orig_rowno)    
+        """)
+    exec_command("""
+    update voucher_rounded as a
+       set 本币金额=round( (select sum(本币金额) from voucher_rounded b where b.orig_table=a.orig_table and b.借贷='2') - (select sum(本币金额) from voucher_rounded b where b.orig_table=a.orig_table and b.借贷='1' and b.orig_rowno<>a.orig_rowno) , 2 )
+     where orig_table in ('ACG_FA', 'ACG_FC')
+       and 借贷='1'  
+       and exists (select 1 from (select orig_table, orig_rowno from (
+                                                                      select orig_table, orig_rowno, 本币金额, 
+                                                                             row_number() over (partition by orig_table order by 本币金额 desc) rn 
+                                                                        from voucher_rounded a
+                                                                       where orig_table in ('ACG_FA', 'ACG_FC')
+                                                                         and 借贷='1'
+                                                                     ) where rn=1) x 
+                           where x.orig_table=a.orig_table and x.orig_rowno=a.orig_rowno)    
+        """)
+    # 2.2 ACG_FB
+    exec_command("""
+    update voucher_rounded 
+       set 本币金额=round(本币金额,2)
+     where orig_table = 'ACG_FB'
+       and 借贷='1'    
+        """)
+    exec_command("""
+    update voucher_rounded as a
+       set 本币金额=round(本币金额,2)
+     where orig_table = 'ACG_FB'
+       and 借贷='2'  
+       and not exists (select 1 from (select orig_table, orig_rowno from (
+                                                                      select orig_table, orig_rowno, 本币金额, 
+                                                                             row_number() over (partition by orig_table order by 本币金额 desc) rn 
+                                                                        from voucher_rounded a
+                                                                       where orig_table = 'ACG_FB'
+                                                                         and 借贷='2'
+                                                                     ) where rn=1) x 
+                                where x.orig_table=a.orig_table and x.orig_rowno=a.orig_rowno)    
+        """)
+    exec_command("""
+    update voucher_rounded as a
+       set 本币金额=round( (select sum(本币金额) from voucher_rounded b where b.orig_table=a.orig_table and b.借贷='1') - (select sum(本币金额) from voucher_rounded b where b.orig_table=a.orig_table and b.借贷='2' and b.orig_rowno<>a.orig_rowno) , 2 )
+     where orig_table = 'ACG_FB'
+       and 借贷='2'  
+       and exists (select 1 from (select orig_table, orig_rowno from (
+                                                                      select orig_table, orig_rowno, 本币金额, 
+                                                                             row_number() over (partition by orig_table order by 本币金额 desc) rn 
+                                                                        from voucher_rounded a
+                                                                       where orig_table = 'ACG_FB'
+                                                                         and 借贷='2'
+                                                                     ) where rn=1) x 
+                           where x.orig_table=a.orig_table and x.orig_rowno=a.orig_rowno)    
+        """)
+    # 3 ACG_FD
+    exec_command("""
+    update voucher_rounded 
+       set 本币金额=round(本币金额,2)
+     where orig_table = 'ACG_FD'    
+        """)
+    # 4 调整数量
+    exec_command("""
+update voucher_rounded 
+   set 数量 = round(数量,3)
+where orig_table  = 'ACD' 
+  and 会计科目代码 not like '5301%'    
+    """)
+    exec_command("""
+update voucher_rounded as a
+   set 数量 = round(数量,3)
+where orig_table  = 'ACD' 
+  and 会计科目代码 like '5301%'
+  and not exists (select 1 from (select 户号, 数量 from (
+                                                          select 户号, 数量, 
+                                                                 row_number() over (partition by orig_rowno order by abs(数量) desc) rn 
+                                                            from voucher_rounded a
+                                                           where orig_table = 'ACD'
+                                                             and 会计科目代码 like '5301%'
+                                                             and orig_rowno=a.orig_rowno
+                                                          ) where rn=1) x 
+                            where x.户号=a.户号 and x.数量=a.数量 )    
+    """)
+    exec_command("""
+update voucher_rounded as a
+   set 数量 = (case when instr( (select tag_special from voucher_entry b where b."index" = a.orig_rowno), 'C' ) > 0
+                      then 
+                        round( 
+                             (select 数量 from voucher_entry b where b."index" = a.orig_rowno)
+                           - (select 数量 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and 会计科目代码 not like '5301%')  
+                           + (select sum(数量) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and b.会计科目代码 like '5301%' and (b.户号<>a.户号 or b.数量<>a.数量))
+                        , 3 ) * (-1)
+                      else 
+                        round( 
+                             (select 数量 from voucher_entry b where b."index" = a.orig_rowno)
+                           - (select 数量 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and 会计科目代码 not like '5301%')  
+                           - (select sum(数量) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and b.会计科目代码 like '5301%' and (b.户号<>a.户号 or b.数量<>a.数量))
+                        , 3 )
+                  end)                  
+where orig_table  = 'ACD' 
+  and 会计科目代码 like '5301%'
+  and exists (select 1 from (select 户号, 数量 from (
+                                                      select 户号, 数量, 
+                                                             row_number() over (partition by orig_rowno order by abs(数量) desc) rn 
+                                                        from voucher_rounded a
+                                                       where orig_table = 'ACD'
+                                                         and 会计科目代码 like '5301%'
+                                                         and orig_rowno=a.orig_rowno
+                                                      ) where rn=1) x 
+                      where x.户号=a.户号 and x.数量=a.数量 )    
+    """)
+    exec_command("""
+update voucher_rounded set 数量=round(数量,3)
+where orig_table <> 'ACD'     
+    """)
 
 
 def process_stat_voucher():
-    exec_command("""
-drop table if exists stat_voucher    
-    """)
+    exec_command("drop table if exists stat_voucher")
+    # 0711 修改 统计结果基于 voucher_rounded
+    process_voucher_rounded()
     exec_command("""
 create table stat_voucher as 
 select 凭证号码,  
-       ( select 凭证摘要 from voucher_merged b where b.orig_rowno=(select min(a.orig_rowno) from voucher_merged c where c.凭证号码=a.凭证号码) ) 摘要, 
+       ( select 凭证摘要 from voucher_rounded b where b.orig_rowno=(select min(a.orig_rowno) from voucher_rounded c where c.凭证号码=a.凭证号码) ) 摘要, 
        count(*) 行数, 
        --0630 修改 所有拆分后凭证金额和数量进行舍入 后调整
-       sum(case when 借贷='1' then 本币金额 else 0 end) 借方金额, 
-       --round(sum(case when 借贷='1' then 本币金额 else 0 end),2) 借方金额, 
-       sum(case when 借贷='2' then 本币金额 else 0 end) 贷方金额, 
-       --round(sum(case when 借贷='2' then 本币金额 else 0 end),2) 贷方金额, 
+       --sum(case when 借贷='1' then 本币金额 else 0 end) 借方金额, 
+       round(sum(case when 借贷='1' then 本币金额 else 0 end),2) 借方金额, 
+       --sum(case when 借贷='2' then 本币金额 else 0 end) 贷方金额, 
+       round(sum(case when 借贷='2' then 本币金额 else 0 end),2) 贷方金额, 
        round(sum(case when 借贷='1' then 本币金额 else 0 end) - sum(case when 借贷='2' then 本币金额 else 0 end),2) 借贷差
-from voucher_merged a
+from voucher_rounded a
 group by 凭证号码    
     """)
 
@@ -119,7 +269,8 @@ create table voucher_output as
 select 凭证号码 序号（同一凭证头下的明细序号相同）, '1000' 账套, 会计期, null 凭证附件张数, substr(凭证号码, 1,2) 凭证分类, substr(凭证号码, 3,1) 凭证类型, 
        借贷 借贷标志（1借2贷）, 凭证摘要, 会计科目代码 会计科目代码（AAAA02A1页面查询）, 户号 户号（AAAAID01页面查询）, 参号, 附加类别一, 附加类别二, 币种 币种代码, 
        '0.0000' 记账汇率, 本币金额 本位币金额, 外币金额, 数量, null 数量单位, null 现金流量代码（AAAA10页面查询）
-from voucher_merged
+--from voucher_merged # 0711 修改 导出凭证 基于 voucher_rounded
+  from voucher_rounded
     """)
 
 

@@ -18,7 +18,7 @@ async def not_found(request, exc):
 
 exception_handlers = {404: not_found}
 
-app = FastAPI(title="XCP 接口文档", description="核心处理单元(Core Processor)接口文档", version="1.9.6", docs_url=None, redoc_url=None, exception_handlers=exception_handlers)
+app = FastAPI(title="XCP 接口文档", description="核心处理单元(Core Processor)接口文档", version="1.9.7", docs_url=None, redoc_url=None, exception_handlers=exception_handlers)
 
 
 @app.get("/doc", include_in_schema=False)

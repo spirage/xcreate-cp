@@ -4,6 +4,14 @@ import time
 from core.database import *
 import service.mat_detail_service as mat_service
 import service.ba_rd_split_service as rd_service
+from core.database import *
+
+
+# def test_round():
+#     cur = exec_query("select orig_rowno, 本币金额 from voucher_merged_test" )
+#     rows = cur.fetchall()
+#     for row in rows:
+#         exec_command("update voucher_merged_test set 本币金额=" + str(round(row[1], 2)) + " where orig_rowno=" + str(row[0]))
 
 
 if __name__ == '__main__':
@@ -19,7 +27,9 @@ if __name__ == '__main__':
     #fill_mat_track()
     #tag_mat_group()
 
-    rd_service.gen_staff_manhour_detail()
+    #rd_service.gen_staff_manhour_detail()
+
+    # test_round()
 
     #version = conn.execute("SELECT SQLITE_VERSION()").fetchone()[0]
     # 输出版本信息

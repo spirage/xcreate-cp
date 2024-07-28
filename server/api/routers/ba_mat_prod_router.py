@@ -216,7 +216,7 @@ async def process_merchandise_inventory():
     acg_eb_库存商品销售计价
     """
     try:
-        ba_mat_prod_service.process_merchandise_inventory
+        ba_mat_prod_service.process_merchandise_inventory()
         return ok()
     except sqlite3.OperationalError as oe:
         logger.error("数据库操作异常：" + str(oe))

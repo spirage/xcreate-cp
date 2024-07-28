@@ -12,7 +12,7 @@ def init_data(acc_entity, acc_period):
     logger.info("初始化或重新初始化数据")
     exec_command("""
 update sys_config 
-   set value = '"""+acc_entity+"""',
+   set value = '""" + acc_entity + """',
        update_time = strftime('%Y-%m-%d %H:%M:%S', CURRENT_TIMESTAMP, 'localtime')
 where  key = 'sys.acc_entity'
 """)
@@ -22,32 +22,33 @@ update sys_config
        update_time = strftime('%Y-%m-%d %H:%M:%S', CURRENT_TIMESTAMP, 'localtime')
 where  key = 'sys.acc_period'
     """)
-    reset_workday(acc_period)
+    # 0727 修改 将接口中根据会计帐期改变时同时重置工作日的处理去除
+    # reset_workday(acc_period)
     reset_database()
 
+# 0727 修改 将接口中根据会计帐期改变时同时重置工作日的处理去除
+# def reset_workday(yearmonth):
+#     logger.info("重置工作日")
+#
+#     dates = get_dates_in_month(yearmonth)
+#     cn_holidays = holidays.country_holidays('CN')
+#     workdays = []
+#     for date in dates:
+#         if cn_holidays.is_workday(date):
+#             workdays.append(date.day)
+#     df = pd.DataFrame(workdays, columns=['day'])
+#     df.to_sql("sys_workday", conn, if_exists="replace", index=False)
 
-def reset_workday(yearmonth):
-    logger.info("重置工作日")
 
-    dates = get_dates_in_month(yearmonth)
-    cn_holidays = holidays.country_holidays('CN')
-    workdays = []
-    for date in dates:
-        if cn_holidays.is_workday(date):
-            workdays.append(date.day)
-    df = pd.DataFrame(workdays, columns=['day'])
-    df.to_sql("sys_workday", conn, if_exists="replace", index=False)
-
-
-def get_dates_in_month(yearmonth):
-    ym = datetime.strptime(yearmonth, '%Y%m')
-    year = ym.year
-    month = ym.month
-    first_day_of_month = datetime(year, month, 1)
-    days_in_month = calendar.monthrange(year, month)[1]
-
-    dates = [first_day_of_month + timedelta(days=i) for i in range(days_in_month)]
-    return dates
+# def get_dates_in_month(yearmonth):
+#     ym = datetime.strptime(yearmonth, '%Y%m')
+#     year = ym.year
+#     month = ym.month
+#     first_day_of_month = datetime(year, month, 1)
+#     days_in_month = calendar.monthrange(year, month)[1]
+#
+#     dates = [first_day_of_month + timedelta(days=i) for i in range(days_in_month)]
+#     return dates
 
 
 def reset_database():
