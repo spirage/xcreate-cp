@@ -605,13 +605,14 @@ from map_svoucher_project_raccount
 group by 1,2
     """)
 
-
+# 0819 修改 拆分后凭证导入功能增加后，对统计研发项目和统计研发科目两个统计指标进行口径调整
 def process_stat_raccount():
     exec_command("drop table if exists stat_raccount")
     exec_command("""
 create table stat_raccount as 
-select raccount_code 研发科目编码, raccount_name 研发科目名称, sum(account_ramount) 研发金额
-from map_svoucher_project_raccount
+select 会计科目代码 研发科目编码, 会计科目中文名称 研发科目名称, sum(本币金额) 研发金额
+from voucher_splitted 
+where 会计科目代码 like '5301%'
 group by 1,2
     """)
 
@@ -625,13 +626,14 @@ from map_svoucher_project_raccount a
 group by 1,2,3,4
     """)
 
-
+# 0819 修改 拆分后凭证导入功能增加后，对统计研发项目和统计研发科目两个统计指标进行口径调整
 def process_stat_project():
     exec_command("drop table if exists stat_project")
     exec_command("""
 create table stat_project as
-select project_code 项目编号, (select 项目名称 from para_project b where b.项目编码=a.project_code limit 1) 项目名称,  raccount_code 研发科目编码, raccount_name 研发科目名称, sum(account_ramount) 研发科目金额, sum(account_ramount) / sum( sum(account_ramount) ) over (partition by project_code) 比例
-from map_svoucher_project_raccount a
+select 户号 项目编号, 户号名称 项目名称, 会计科目代码 研发科目编码, 会计科目中文名称 研发科目名称, sum(本币金额) 研发科目金额, sum(本币金额) / sum( sum(本币金额) ) over (partition by 户号) 比例
+from voucher_splitted 
+where 会计科目代码 like '5301%'
 group by 1,2,3,4
     """)
 
