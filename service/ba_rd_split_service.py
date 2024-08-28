@@ -656,19 +656,17 @@ group by 1,2,3,4
     """)
 
 
+# 0828 修改 拆分后凭证导入功能增加后，对统计成本元素这个统计指标进行口径调整
 def process_stat_caccount():
     exec_command("drop table if exists stat_caccount")
     exec_command("""
 create table stat_caccount as
-select cost_account_code 成本科目代码,  cost_account_name 成本科目名称, cost_center_code 成本中心代码, cost_center_name 成本中心名称,  
-       (select sum(account_ramount) from map_svoucher_project_raccount b where b.voucher_selected=a.voucher_selected group by b.voucher_selected) 研发金额,
-       (select sum(account_rconsume) from map_svoucher_project_raccount b where b.voucher_selected=a.voucher_selected group by b.voucher_selected) 研发消耗
-from map_ccenter_caccount_svoucher a
-where coalesce(a.rd_amount,0) <> 0 
-  and a.voucher_type not like 'TG-%'
-  and a.voucher_type not like 'TS-1'
-  and instr(a.cost_center_name, '来料加工') = 0
-  and instr(a.cost_center_name, '外销') = 0
+select orig.成本科目代码, orig.成本科目名称,  orig.成本中心代码, orig.成本中心名称,
+       sum(本币金额) 研发金额, sum(数量) 研发消耗
+from voucher_splitted split,
+     (select orig_rowno, 参号 成本科目代码, 参号名称 成本科目名称, 户号 成本中心代码, 户号名称 成本中心名称 from voucher_splitted where orig_caccount is null and orig_vtype is null) orig
+where split.会计科目代码 like '5301%'
+  and split.orig_rowno = orig.orig_rowno
 group by 1,2,3,4
     """)
 
