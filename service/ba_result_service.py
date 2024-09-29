@@ -60,22 +60,23 @@ def process_voucher_rounded():
     exec_command("create table voucher_rounded as select * from voucher_merged")
     # 1 ACD
     exec_command("""
-    update voucher_rounded 
+    update voucher_rounded as a
        set 本币金额 = round(本币金额,2)
     where orig_table  = 'ACD' 
-      and 会计科目代码 not like '5301%'    
+      and exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 )
+      --0926 修改 会计科目代码 not like '5301%' and  会计科目代码 not like '510101%'
         """)
     exec_command("""
     update voucher_rounded as a
        set 本币金额 = round(本币金额,2)
     where orig_table  = 'ACD' 
-      and 会计科目代码 like '5301%'
+      and not exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 ) --0926 修改 会计科目代码 like '5301%'
       and not exists (select 1 from (select 户号, 本币金额 from (
                                                               select 户号, 本币金额, 
                                                                      row_number() over (partition by orig_rowno order by abs(本币金额) desc) rn 
                                                                 from voucher_rounded a
                                                                where orig_table = 'ACD'
-                                                                 and 会计科目代码 like '5301%'
+                                                                 and not exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 ) --0926 修改 会计科目代码 like '5301%'
                                                                  and orig_rowno=a.orig_rowno
                                                               ) where rn=1) x 
                                 where x.户号=a.户号 and x.本币金额=a.本币金额 )    
@@ -86,14 +87,14 @@ def process_voucher_rounded():
                           then 
                             round( 
                                  (select 本币金额 from voucher_entry b where b."index" = a.orig_rowno)
-                               - (select 本币金额 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and 会计科目代码 not like '5301%')  
-                               + (select sum(本币金额) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and b.会计科目代码 like '5301%' and (b.户号<>a.户号 or b.本币金额<>a.本币金额))
+                               - (select 本币金额 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and exists (select 1 from voucher_entry ve where ve."index"=b.orig_rowno and ve.会计科目代码=b.会计科目代码 ) /*0926 修改 会计科目代码 not like '5301%' and  会计科目代码 not like '510101%'*/  )  
+                               + (select sum(本币金额) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and not exists (select 1 from voucher_entry ve where ve."index"=b.orig_rowno and ve.会计科目代码=b.会计科目代码 )/*b.会计科目代码 like '5301%'*/ and (b.户号<>a.户号 or b.本币金额<>a.本币金额))
                             , 2 ) * (-1)
                           else 
                             round( 
                                  (select 本币金额 from voucher_entry b where b."index" = a.orig_rowno)
-                               - (select 本币金额 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and 会计科目代码 not like '5301%')  
-                               - (select sum(本币金额) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and b.会计科目代码 like '5301%' and (b.户号<>a.户号 or b.本币金额<>a.本币金额))
+                               - (select 本币金额 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and exists (select 1 from voucher_entry ve where ve."index"=b.orig_rowno and ve.会计科目代码=b.会计科目代码 )/*会计科目代码 not like '5301%'*/)  
+                               - (select sum(本币金额) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and not exists (select 1 from voucher_entry ve where ve."index"=b.orig_rowno and ve.会计科目代码=b.会计科目代码 )/*b.会计科目代码 like '5301%'*/ and (b.户号<>a.户号 or b.本币金额<>a.本币金额))
                             , 2 )
                       end)                  
     where orig_table  = 'ACD' 
@@ -103,7 +104,7 @@ def process_voucher_rounded():
                                                                  row_number() over (partition by orig_rowno order by abs(本币金额) desc) rn 
                                                             from voucher_rounded a
                                                            where orig_table = 'ACD'
-                                                             and 会计科目代码 like '5301%'
+                                                             and not exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 )/*会计科目代码 like '5301%'*/
                                                              and orig_rowno=a.orig_rowno
                                                           ) where rn=1) x 
                           where x.户号=a.户号 and x.本币金额=a.本币金额 )    
@@ -186,57 +187,57 @@ def process_voucher_rounded():
         """)
     # 4 调整数量
     exec_command("""
-update voucher_rounded 
-   set 数量 = round(数量,3)
-where orig_table  = 'ACD' 
-  and 会计科目代码 not like '5301%'    
-    """)
+    update voucher_rounded as a
+       set 数量 = round(数量,3)
+    where orig_table  = 'ACD' 
+      and exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 )/*会计科目代码 not like '5301%'*/    
+        """)
     exec_command("""
-update voucher_rounded as a
-   set 数量 = round(数量,3)
-where orig_table  = 'ACD' 
-  and 会计科目代码 like '5301%'
-  and not exists (select 1 from (select 户号, 数量 from (
+    update voucher_rounded as a
+       set 数量 = round(数量,3)
+    where orig_table  = 'ACD' 
+      and not exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 )/*会计科目代码 like '5301%'*/
+      and not exists (select 1 from (select 户号, 数量 from (
+                                                              select 户号, 数量, 
+                                                                     row_number() over (partition by orig_rowno order by abs(数量) desc) rn 
+                                                                from voucher_rounded a
+                                                               where orig_table = 'ACD'
+                                                                 and not exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 )/*会计科目代码 like '5301%'*/
+                                                                 and orig_rowno=a.orig_rowno
+                                                              ) where rn=1) x 
+                                where x.户号=a.户号 and x.数量=a.数量 )    
+        """)
+    exec_command("""
+    update voucher_rounded as a
+       set 数量 = (case when instr( (select tag_special from voucher_entry b where b."index" = a.orig_rowno), 'C' ) > 0
+                          then 
+                            round( 
+                                 (select 数量 from voucher_entry b where b."index" = a.orig_rowno)
+                               - (select 数量 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and exists (select 1 from voucher_entry ve where ve."index"=b.orig_rowno and ve.会计科目代码=b.会计科目代码 )/*会计科目代码 not like '5301%'*/)  
+                               + (select sum(数量) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and not exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 )/*b.会计科目代码 like '5301%'*/ and (b.户号<>a.户号 or b.数量<>a.数量))
+                            , 3 ) * (-1)
+                          else 
+                            round( 
+                                 (select 数量 from voucher_entry b where b."index" = a.orig_rowno)
+                               - (select 数量 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and exists (select 1 from voucher_entry ve where ve."index"=b.orig_rowno and ve.会计科目代码=b.会计科目代码 )/*会计科目代码 not like '5301%'*/)  
+                               - (select sum(数量) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and not exists (select 1 from voucher_entry ve where ve."index"=b.orig_rowno and ve.会计科目代码=b.会计科目代码 )/*b.会计科目代码 like '5301%'*/ and (b.户号<>a.户号 or b.数量<>a.数量))
+                            , 3 )
+                      end)                  
+    where orig_table  = 'ACD' 
+      and not exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 )/*会计科目代码 like '5301%'*/
+      and exists (select 1 from (select 户号, 数量 from (
                                                           select 户号, 数量, 
                                                                  row_number() over (partition by orig_rowno order by abs(数量) desc) rn 
                                                             from voucher_rounded a
                                                            where orig_table = 'ACD'
-                                                             and 会计科目代码 like '5301%'
+                                                             and not exists (select 1 from voucher_entry ve where ve."index"=a.orig_rowno and ve.会计科目代码=a.会计科目代码 )/*会计科目代码 like '5301%'*/
                                                              and orig_rowno=a.orig_rowno
                                                           ) where rn=1) x 
-                            where x.户号=a.户号 and x.数量=a.数量 )    
-    """)
+                          where x.户号=a.户号 and x.数量=a.数量 )    
+        """)
     exec_command("""
-update voucher_rounded as a
-   set 数量 = (case when instr( (select tag_special from voucher_entry b where b."index" = a.orig_rowno), 'C' ) > 0
-                      then 
-                        round( 
-                             (select 数量 from voucher_entry b where b."index" = a.orig_rowno)
-                           - (select 数量 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and 会计科目代码 not like '5301%')  
-                           + (select sum(数量) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and b.会计科目代码 like '5301%' and (b.户号<>a.户号 or b.数量<>a.数量))
-                        , 3 ) * (-1)
-                      else 
-                        round( 
-                             (select 数量 from voucher_entry b where b."index" = a.orig_rowno)
-                           - (select 数量 from voucher_rounded b where b.orig_rowno=a.orig_rowno and orig_table  = 'ACD' and 会计科目代码 not like '5301%')  
-                           - (select sum(数量) from voucher_rounded b where b.orig_rowno=a.orig_rowno and b.orig_table  = 'ACD' and b.会计科目代码 like '5301%' and (b.户号<>a.户号 or b.数量<>a.数量))
-                        , 3 )
-                  end)                  
-where orig_table  = 'ACD' 
-  and 会计科目代码 like '5301%'
-  and exists (select 1 from (select 户号, 数量 from (
-                                                      select 户号, 数量, 
-                                                             row_number() over (partition by orig_rowno order by abs(数量) desc) rn 
-                                                        from voucher_rounded a
-                                                       where orig_table = 'ACD'
-                                                         and 会计科目代码 like '5301%'
-                                                         and orig_rowno=a.orig_rowno
-                                                      ) where rn=1) x 
-                      where x.户号=a.户号 and x.数量=a.数量 )    
-    """)
-    exec_command("""
-update voucher_rounded set 数量=round(数量,3)
-where orig_table <> 'ACD'     
+    update voucher_rounded set 数量=round(数量,3)
+    where orig_table <> 'ACD'     
     """)
 
 

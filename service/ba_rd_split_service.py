@@ -657,11 +657,14 @@ group by 1,2,3,4
 
 
 # 0828 修改 拆分后凭证导入功能增加后，对统计成本元素这个统计指标进行口径调整
+# 0904 修改 拆分后凭证导入功能增加后，对 统计成本元素 和 acf_da_调整入库凭证 进行口径调整
 def process_stat_caccount():
     exec_command("drop table if exists stat_caccount")
     exec_command("""
 create table stat_caccount as
-select orig.成本科目代码, orig.成本科目名称,  orig.成本中心代码, orig.成本中心名称,
+select orig.成本科目代码, orig.成本科目名称,  
+       coalesce( (select transfer from code_cost_center x where x.code = orig.成本中心代码), orig.成本中心代码 ) 成本中心代码, 
+       (select name from code_cost_center where code = coalesce( (select transfer from code_cost_center x where x.code = orig.成本中心代码), orig.成本中心代码 )) 成本中心名称,
        sum(本币金额) 研发金额, sum(数量) 研发消耗
 from voucher_splitted split,
      (select orig_rowno, 参号 成本科目代码, 参号名称 成本科目名称, 户号 成本中心代码, 户号名称 成本中心名称 from voucher_splitted where orig_caccount is null and orig_vtype is null) orig

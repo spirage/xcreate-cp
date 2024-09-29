@@ -75,4 +75,5 @@ venv_mac/
 dist/
 *.spec
 xcp.db*
+xcp.log*
 xcpserver-*

@@ -19,262 +19,196 @@ class Page(BaseModel):
 
 # 0727 去除人员工资计算相关接口
 
-# @ba_rd_split_router.get("/tpl_para_staff", tags=["3.3.1 研发投入核算"])
-# async def tpl_para_staff():
-#     """
-#     <b>获取项目人员名单表模板</b>
-#     """
-#     try:
-#         file_for_download = "para_staff.xlsx"
-#         excel_content = db.export_through_mem("tpl_para_staff")
-#         response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-#         response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
-#         return response
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.post("/imp_para_staff", tags=["3.3.1 研发投入核算"])
-# async def imp_para_staff(file: UploadFile = File(...)):
-#     """
-#     <b>导入获取项目人员名单表</b>
-#     """
-#     try:
-#         if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
-#             await db.import_through_mem(file, "para_staff", False)
-#             return ok()
-#         else:
-#             return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.get("/tpl_para_staff_salary", tags=["3.3.1 研发投入核算"])
-# async def tpl_para_staff_salary():
-#     """
-#     <b>获取工资社保表模板</b>
-#     """
-#     try:
-#         file_for_download = "para_staff_salary.xlsx"
-#         excel_content = db.export_through_mem("tpl_para_staff_salary")
-#         response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-#         response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
-#         return response
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.post("/imp_para_staff_salary", tags=["3.3.1 研发投入核算"])
-# async def imp_para_staff_salary(file: UploadFile = File(...)):
-#     """
-#     <b>导入工资社保表</b>
-#     """
-#     try:
-#         if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
-#             await db.import_through_mem(file, "para_staff_salary", False)
-#             return ok()
-#         else:
-#             return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.get("/tpl_para_staff_manhour", tags=["3.3.1 研发投入核算"])
-# async def tpl_para_staff_manhour():
-#     """
-#     <b>获取人员工时设置表模板</b>
-#     """
-#     try:
-#         file_for_download = "para_staff_manhour.xlsx"
-#         excel_content = db.export_through_mem("tpl_para_staff_manhour")
-#         response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-#         response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
-#         return response
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.post("/imp_para_staff_manhour", tags=["3.3.1 研发投入核算"])
-# async def imp_para_staff_manhour(file: UploadFile = File(...)):
-#     """
-#     <b>导入人员工时设置表</b>
-#     """
-#     try:
-#         if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
-#             await db.import_through_mem(file, "para_staff_manhour", False)
-#             return ok()
-#         else:
-#             return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.get("/get_para_staff_manhour_detail", tags=["3.3.1 研发投入核算"])
-# async def get_para_staff_manhour_detail():
-#     """
-#     <b>处理和获取人员工时设置明细表</b>
-#     """
-#     try:
-#         ba_rd_split_service.process_para_staff_manhour_detail()
-#         data = db.get_table('para_staff_manhour_detail', 1, 500)
-#         return ok(data)
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.get("/tpl_para_dept_celement", tags=["3.3.1 研发投入核算"])
-# async def tpl_para_dept_celement():
-#     """
-#     <b>获取人员单位与成本要素对照表模板</b>
-#     """
-#     try:
-#         file_for_download = "para_dept_celement.xlsx"
-#         excel_content = db.export_through_mem("tpl_para_dept_celement")
-#         response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-#         response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
-#         return response
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.post("/imp_para_dept_celement", tags=["3.3.1 研发投入核算"])
-# async def imp_para_dept_celement(file: UploadFile = File(...)):
-#     """
-#     <b>导入人员单位与成本要素对照表</b>
-#     """
-#     try:
-#         if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
-#             await db.import_through_mem(file, "para_dept_celement", False)
-#             return ok()
-#         else:
-#             return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.get("/tpl_para_ctype_raccount", tags=["3.3.1 研发投入核算"])
-# async def tpl_para_ctype_raccount():
-#     """
-#     <b>获取费用类型与会计科目对照表模板</b>
-#     """
-#     try:
-#         file_for_download = "para_ctype_raccount.xlsx"
-#         excel_content = db.export_through_mem("tpl_para_ctype_raccount")
-#         response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-#         response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
-#         return response
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.post("/imp_para_ctype_raccount", tags=["3.3.1 研发投入核算"])
-# async def imp_para_ctype_raccount(file: UploadFile = File(...)):
-#     """
-#     <b>导入费用类型与会计科目对照表</b>
-#     """
-#     try:
-#         if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
-#             await db.import_through_mem(file, "para_ctype_raccount", False)
-#             return ok()
-#         else:
-#             return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.get("/get_manhour_detail", tags=["3.3.1 研发投入核算"])
-# async def get_manhour_detail():
-#     """
-#     <b>处理和获取工时明细表</b>
-#     """
-#     try:
-#         ba_rd_split_service.process_manhour_detail()
-#         data = db.get_table('manhour_detail', 1, 5000)
-#         return ok(data)
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.get("/get_salary_staff", tags=["3.3.1 研发投入核算"])
-# async def get_salary_staff():
-#     """
-#     <b>处理和获取研发人员人工分配表</b>
-#     """
-#     try:
-#         ba_rd_split_service.process_salary_staff()
-#         data = db.get_table('salary_staff', 1, 5000)
-#         return ok(data)
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
-#
-#
-# @ba_rd_split_router.get("/get_salary_project", tags=["3.3.1 研发投入核算"])
-# async def get_salary_project():
-#     """
-#     <b>处理和获取研发工资汇总表</b>
-#     """
-#     try:
-#         ba_rd_split_service.process_salary_project()
-#         data = db.get_table('salary_project', 1, 5000)
-#         return ok(data)
-#     except sqlite3.OperationalError as oe:
-#         logger.error("数据库操作异常：" + str(oe))
-#         return fail(21, "数据库操作异常：" + str(oe))
-#     except Exception as ex:
-#         logger.error(ex)
-#         return fail(24, str(ex))
+
+# 0928 重新增加工时计算相关接
+@ba_rd_split_router.get("/exp_manhour_project", tags=["3.3.1 研发投入核算"])
+async def exp_manhour_project():
+    """
+    <b>导出当前 AA_项目人员对应 表数据</b>
+    """
+    try:
+        file_for_download = "ext_manhour_project.xlsx"
+        excel_content = db.export_through_mem("ext_manhour_project")
+        response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
+        return response
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.post("/imp_manhour_project", tags=["3.3.1 研发投入核算"])
+async def imp_para_staff(file: UploadFile = File(...)):
+    """
+    <b>导入 AA_项目人员对应 表</b>
+    """
+    try:
+        if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+            await db.import_through_mem(file, "ext_manhour_project", False)
+            return ok()
+        else:
+            return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.get("/exp_manhour_voucher", tags=["3.3.1 研发投入核算"])
+async def exp_manhour_voucher():
+    """
+    <b>导出当前 AB_导入序时账 表数据</b>
+    """
+    try:
+        file_for_download = "ext_manhour_voucher.xlsx"
+        excel_content = db.export_through_mem("ext_manhour_voucher")
+        response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
+        return response
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.post("/imp_manhour_voucher", tags=["3.3.1 研发投入核算"])
+async def imp_manhour_voucher(file: UploadFile = File(...)):
+    """
+    <b>导入 AB_导入序时账 表</b>
+    """
+    try:
+        if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+            await db.import_through_mem(file, "ext_manhour_voucher", False)
+            return ok()
+        else:
+            return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.get("/exp_manhour_salary", tags=["3.3.1 研发投入核算"])
+async def exp_manhour_salary():
+    """
+    <b>导出当前 AC_工资社保表 表数据</b>
+    """
+    try:
+        file_for_download = "ext_manhour_salary.xlsx"
+        excel_content = db.export_through_mem("ext_manhour_salary")
+        response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
+        return response
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.post("/imp_manhour_salary", tags=["3.3.1 研发投入核算"])
+async def imp_manhour_salary(file: UploadFile = File(...)):
+    """
+    <b>导入 AC_工资社保表 表</b>
+    """
+    try:
+        if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+            await db.import_through_mem(file, "ext_manhour_salary", False)
+            return ok()
+        else:
+            return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.get("/exp_manhour_total", tags=["3.3.1 研发投入核算"])
+async def exp_manhour_total():
+    """
+    <b>导出当前 CA_附件明细 表数据</b>
+    """
+    try:
+        file_for_download = "ext_manhour_total.xlsx"
+        excel_content = db.export_through_mem("ext_manhour_total")
+        response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
+        return response
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.post("/imp_manhour_total", tags=["3.3.1 研发投入核算"])
+async def imp_manhour_total(file: UploadFile = File(...)):
+    """
+    <b>导入 CA_附件明细 表</b>
+    """
+    try:
+        if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+            await db.import_through_mem(file, "ext_manhour_total", False)
+            return ok()
+        else:
+            return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.get("/exp_manhour_detail", tags=["3.3.1 研发投入核算"])
+async def exp_manhour_detail():
+    """
+    <b>导出当前 CB_工时明细 表数据</b>
+    """
+    try:
+        file_for_download = "ext_manhour_detail.xlsx"
+        excel_content = db.export_through_mem("ext_manhour_detail")
+        response = Response(content=excel_content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response.headers['Content-Disposition'] = 'attachment; filename=' + file_for_download
+        return response
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
+
+
+@ba_rd_split_router.post("/imp_manhour_detail", tags=["3.3.1 研发投入核算"])
+async def imp_manhour_detail(file: UploadFile = File(...)):
+    """
+    <b>导入 CB_工时明细 表</b>
+    """
+    try:
+        if file.content_type in ("application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+            await db.import_through_mem(file, "ext_manhour_detail", False)
+            return ok()
+        else:
+            return fail(415, "文件类型错误，请上传Excel xlsx 或 xls格式")
+    except sqlite3.OperationalError as oe:
+        logger.error("数据库操作异常：" + str(oe))
+        return fail(21, "数据库操作异常：" + str(oe))
+    except Exception as ex:
+        logger.error(ex)
+        return fail(24, str(ex))
 
 
 @ba_rd_split_router.get("/tpl_voucher_entry", tags=["3.3.1 研发投入核算"])

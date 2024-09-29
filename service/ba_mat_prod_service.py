@@ -550,16 +550,16 @@ update acg_fd_调后转主营成本凭证 as a
    set b原金额 = 本币金额,
        c原重量 = 数量,
        本币金额 = (select k新结转成本 from acg_dg_自制半成品销售计价 b where b.贷方行号=a.位置 or b.借方行号=a.位置)
-where 类型 = '半成品抛帐'
-  and exists (select 1 from acg_dg_自制半成品销售计价 b where b.贷方行号=a.位置 or b.借方行号=a.位置)    
+where /* 0926 修改 根据需求去除类型的判断 类型 = '半成品抛帐'
+  and*/ exists (select 1 from acg_dg_自制半成品销售计价 b where b.贷方行号=a.位置 or b.借方行号=a.位置)    
     """)
     exec_command("""
 update acg_fd_调后转主营成本凭证 as a 
    set b原金额 = 本币金额,
        c原重量 = 数量,
        本币金额 = (select k新结转成本 from acg_eb_库存商品销售计价 b where b.贷方行号=a.位置 or b.借方行号=a.位置)
-where 类型 = '产成品抛账'
-  and exists (select 1 from acg_eb_库存商品销售计价 b where b.贷方行号=a.位置 or b.借方行号=a.位置)    
+where /* 0926 修改 根据需求去除类型的判断 类型 = '产成品抛账'
+  and*/ exists (select 1 from acg_eb_库存商品销售计价 b where b.贷方行号=a.位置 or b.借方行号=a.位置)    
     """)
 
 

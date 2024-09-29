@@ -1,0 +1,25 @@
+研发费用辅助核算系统 CP单元 版本1.9.13 版本发布说明
+
+1 根据业务需求，对 acg_fd_调后转主营成本凭证 处理规则进行调整
+时间：9月26日
+处理：根据业务需求和沟通情况对 acg_fd_调后转主营成本凭证 处理规则进行调整。
+影响：get_acg_fd_main_cost_voucher(研发核算智能处理-研发入库凭证)
+     get_voucher_recalculated(研发核算智能处理-统计_研发项目 单价重算)
+     get_voucher_merged(研发核算结果管理-记账凭证数据)
+     等3个接口返回数据，BP单元无需调整。
+
+2 新增 工时相关接口
+内容：根据业务需求新增加
+exp_manhour_project 新增 导出当前 AA_项目人员对应 表数据
+imp_manhour_project 新增 导入 AA_项目人员对应 表
+exp_manhour_voucher 新增 导出当前 AB_导入序时账 表数据
+imp_manhour_voucher 新增 导入 AB_导入序时账 表
+exp_manhour_salary 新增 导出当前 AC_工资社保表 表数据
+imp_manhour_salary 新增 导入 AC_工资社保表 表
+exp_manhour_total 新增 导出当前 CA_附件明细 表数据
+imp_manhour_total 新增 导入 CA_附件明细 表
+exp_manhour_detail 新增 导出当前 CB_工时明细 表数据
+imp_manhour_detail 新增 导入 CB_工时明细 表
+等 10 个接口。详情参考接口文档1.9.13
+时间：7月28日
+处理：新增接口

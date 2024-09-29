@@ -1,4 +1,4 @@
-VER="1.9.9"
+VER="1.9.13"
 ENV="test"
 PORT="9980"
 DATE=$(date +'%Y%m%d')

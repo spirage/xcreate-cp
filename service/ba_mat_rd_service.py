@@ -254,31 +254,41 @@ order by flowno
     """)
 
 
+# 0904 修改 拆分后凭证导入功能增加后，对 统计成本元素 和 acf_da_调整入库凭证 进行口径调整
+# 0908 修改 拆分后凭证导入功能增加后，根据沟通情况调整stat_product口径
 def process_acf_da_instorage_adjust():
     exec_command("drop table if exists stat_product")
     exec_command("""
 create table stat_product as 
-select b.product_code, 
-       sum(b.rd_amount) product_ramount, 
-       sum(b.rd_amount*coalesce(b.ratio_adjust,1)) product_ramount_adjusted, 
-       sum(b.rd_consume) product_rconsume
-from map_ccenter_caccount_svoucher a,
-     map_project_product_account b
-where a.voucher_type in ('PT','ZS-1','TS-1','TS-2')
-  and a.cost_center_code = b.cost_center_code
-  and a.cost_account_code = b.cost_account_code
+select product_code, sum(研发金额*ratio) product_ramount
+from stat_caccount a,     
+     (
+     with o as
+       (select cost_center_code, cost_account_code, product_code, sum(month_cost) month_cost
+         from map_product_account x 
+        where x.month_cost<>0
+          and not exists (select 1 from map_ccenter_caccount_svoucher z where z.voucher_type like 'TG-%' and z.cost_center_code=x.cost_center_code and z.cost_account_code=x.cost_account_code)
+          and not exists (select 1 from map_ccenter_caccount_svoucher z where z.voucher_type like 'TS-1' and z.cost_center_code=x.cost_center_code and z.cost_account_code=x.cost_account_code)
+          and instr(x.product_name, '来料加工') = 0
+          and instr(x.product_name, '外销') = 0
+        group by 1,2,3)
+     select cost_center_code, cost_account_code, product_code, month_cost / ( sum(month_cost) over (partition by o.cost_center_code, o.cost_account_code) ) ratio
+       from o 
+       ) b
+where a.成本中心代码=b.cost_center_code
+  and a.成本科目代码=b.cost_account_code
 group by 1
     """)
     exec_command("drop table if exists acf_da_instorage_adjust")
     exec_command("""
 create table acf_da_instorage_adjust as 
-select *, null amount_to_adjust, /*0703 修改 改为本币金额*/ 本币金额 amount_adjusted from acf_bc_instorage_sum
+select *, /*0907 修改 将amount_to_adjust默认从null改为为0*/ 0 amount_to_adjust, /*0703 修改 改为本币金额*/ 本币金额 amount_adjusted from acf_bc_instorage_sum
     """)
     exec_command("""
 update acf_da_instorage_adjust as a 
-   set amount_to_adjust = coalesce((select product_ramount_adjusted from stat_product b where b.product_code=a.户号),0) ,
+   set amount_to_adjust = coalesce((select product_ramount from stat_product b where b.product_code=a.户号),0) ,
        --0630 修改 amount_adjusted 为空时处理
-       amount_adjusted = coalesce( ( a.本币金额 - coalesce((select product_ramount_adjusted from stat_product b where b.product_code=a.户号),0) ), 0 )
+       amount_adjusted = coalesce( ( a.本币金额 - coalesce((select product_ramount from stat_product b where b.product_code=a.户号),0) ), 0 )
  where a.借贷='1'
    and a.会计科目中文名称 like '自制半成品-%'
     """)
@@ -289,6 +299,33 @@ update acf_da_instorage_adjust as a
        amount_adjusted = coalesce( ( a.本币金额 - coalesce((select 研发金额 from stat_caccount b where b.成本中心代码=a.户号 and b.成本科目代码=a.参号),0) ), 0 )
  where a.借贷='2'
    and a.会计科目中文名称 like '生产成本-基本生产-结转'
+    """)
+    # 0904 增加以下内容 0906 根据沟通情况修改
+    exec_command("drop table if exists stat_salary")
+    exec_command("""
+create table stat_salary as
+select orig.成本科目代码, orig.成本科目名称,  
+       coalesce( (select transfer from code_cost_center x where x.code = orig.成本中心代码), orig.成本中心代码 ) 成本中心代码, 
+       (select name from code_cost_center where code = coalesce( (select transfer from code_cost_center x where x.code = orig.成本中心代码), orig.成本中心代码 )) 成本中心名称,
+       sum(本币金额) 研发金额
+from voucher_splitted split,
+     (select orig_rowno, 参号 成本科目代码, 参号名称 成本科目名称, 户号 成本中心代码, 户号名称 成本中心名称 from voucher_splitted where orig_caccount is null and orig_vtype is null) orig
+where split.会计科目中文名称 like '制造费用-职工薪酬-%'
+  and split.orig_rowno = orig.orig_rowno
+group by 1,2,3,4
+    """)
+    exec_command("""
+update acf_da_instorage_adjust as a
+   set amount_to_adjust = 
+   (case when a.参号='5100000' then amount_to_adjust - coalesce((select 研发金额 from stat_salary b where b.成本中心代码=a.户号),0)
+         else amount_to_adjust + coalesce((select 研发金额 from stat_salary b where b.成本中心代码=a.户号 and b.成本科目代码=a.参号),0)
+    end)
+ where 借贷='2'    
+    """)
+    exec_command("""
+update acf_da_instorage_adjust as a
+   set amount_adjusted = coalesce( (a.本币金额 - a.amount_to_adjust),0 )
+ where 借贷='2'    
     """)
 
 
