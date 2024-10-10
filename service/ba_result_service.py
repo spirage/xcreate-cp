@@ -4,6 +4,7 @@ from core.database import *
 
 
 def process_voucher_recalculated():
+    logger.info("处理 重算后凭证")
     exec_command("drop table if exists voucher_recalculated")
     exec_command("""
 create table voucher_recalculated as 
@@ -22,9 +23,8 @@ from acg_fd_调后转主营成本凭证
 
 
 def process_voucher_merged():
-    exec_command("""
-drop table if exists voucher_merged    
-    """)
+    logger.info("处理 凭证合并")
+    exec_command("drop table if exists voucher_merged")
     exec_command("""
 create table voucher_merged as 
 select 'ACD' orig_table, orig_rowno orig_rowno, 会计期,凭证日期,凭证号码,凭证摘要,借贷,会计科目代码,会计科目中文名称,户号,户号名称,参号,参号名称,附加类别一,附加类别二,币种,本币金额,外币金额,数量
@@ -55,6 +55,7 @@ update voucher_merged as a
 
 
 def process_voucher_rounded():
+    logger.info("处理 凭证舍位")
     # --0711 修改 所有拆分后凭证金额和数量进行舍入
     exec_command("drop table if exists voucher_rounded")
     exec_command("create table voucher_rounded as select * from voucher_merged")
@@ -242,6 +243,7 @@ def process_voucher_rounded():
 
 
 def process_stat_voucher():
+    logger.info("处理 凭证借贷凭证统计")
     exec_command("drop table if exists stat_voucher")
     # 0711 修改 统计结果基于 voucher_rounded
     process_voucher_rounded()
@@ -262,9 +264,8 @@ group by 凭证号码
 
 
 def process_voucher_output():
-    exec_command("""
-drop table if exists voucher_output
-    """)
+    logger.info("处理 导出凭证")
+    exec_command("drop table if exists voucher_output")
     exec_command("""
 create table voucher_output as 
 select 凭证号码 序号（同一凭证头下的明细序号相同）, '1000' 账套, 会计期, null 凭证附件张数, substr(凭证号码, 1,2) 凭证分类, substr(凭证号码, 3,1) 凭证类型, 

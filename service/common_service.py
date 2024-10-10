@@ -1,11 +1,11 @@
 # -*- coding: UTF-8 -*-
 
 from core.database import *
-import calendar
-from datetime import timedelta
-import holidays
-from datetime import datetime
-import pandas as pd
+# import calendar
+# from datetime import timedelta
+# import holidays
+# from datetime import datetime
+# import pandas as pd
 
 
 def init_data(acc_entity, acc_period):
@@ -59,7 +59,7 @@ select case when name like 'para_%' or name like 'orig_%' then 'delete from '||n
        end action
 from sqlite_master
 where type='table'
-  and name not like 'sys_%' and name not like 'tpl_%' and name not like 'code_%'
+  and name not like 'sys_%' and name not like 'tpl_%' and name not like 'code_%' and name not like 'ext_%'
 order by 1    
     """)
     for row in cur:

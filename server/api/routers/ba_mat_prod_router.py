@@ -242,8 +242,8 @@ async def get_acg_ea_merchandise_inventory():
         return fail(24, str(ex))
 
 
-@ba_mat_prod_router.get("/acg_eb_merchandise_sales", tags=["3.3.2.2 生产物料核算"])
-async def acg_eb_merchandise_sales():
+@ba_mat_prod_router.get("/get_acg_eb_merchandise_sales", tags=["3.3.2.2 生产物料核算"])
+async def get_acg_eb_merchandise_sales():
     """
     acg_eb_库存商品销售计价
     """

@@ -11,31 +11,40 @@ from server.api.routers.ba_mat_rd_router import *
 from server.api.routers.ba_mat_prod_router import *
 from server.api.routers.ba_result_router import *
 
+from core.config import *
+
 
 async def not_found(request, exc):
     return JSONResponse(content=fail(404, "路径不存在"), status_code=exc.status_code)
 
 
 exception_handlers = {404: not_found}
-
-app = FastAPI(title="XCP 接口文档", description="核心处理单元(Core Processor)接口文档", version="1.9.13", docs_url=None, redoc_url=None, exception_handlers=exception_handlers)
+ver = config.get('CORE_VER')
+app = FastAPI(title="XCP 接口文档", description="核心处理单元(Core Processor)接口文档", version=ver, docs_url=None, redoc_url=None, exception_handlers=exception_handlers)
 
 
 @app.get("/doc", include_in_schema=False)
 async def swagger_ui_html():
-    return get_swagger_ui_html(
-        openapi_url="/openapi.json",
-        title="接口文档",
-        swagger_favicon_url=None,
-        swagger_ui_parameters=None
-    )
+    env = config.get('CORE_ENV')
+    if env == "test":
+        return get_swagger_ui_html(
+            openapi_url="/openapi.json",
+            title="接口文档",
+            swagger_favicon_url=None,
+            swagger_ui_parameters=None
+        )
+    else:
+        return JSONResponse(content=fail(404, "生产环境不允许访问"), status_code=404)
 
 
 @app.middleware("http")
 async def custom_header(request, call_next):
+    logger.debug("Request Method: " + str(request.method))
+    logger.debug("Request Url: " + str(request.url))
     response = await call_next(request)
     response.headers["Server"] = "Xcp Server"
     return response
+
 
 app.add_middleware(
     CORSMiddleware,

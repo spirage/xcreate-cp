@@ -4,7 +4,6 @@ from core.response import *
 from fastapi.routing import APIRouter
 from typing import Union
 from pydantic import BaseModel
-import core.database as db
 
 common_router = APIRouter()
 

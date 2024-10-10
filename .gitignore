@@ -77,3 +77,9 @@ dist/
 xcp.db*
 xcp.log*
 xcpserver-*
+
+# Archive files
+*.tar
+*.tar.gz
+*.zip
+*.rar

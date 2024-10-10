@@ -238,7 +238,7 @@ where a.户号 in (select code from code_cost_center where transfer is not null)
 
 
 def gen_tmp_special_retrospect():
-    logger.info("生成tmp_special_retrospect")
+    logger.info("生成特殊回溯表tmp_special_retrospect")
     exec_command("drop table if exists tmp_special_retrospect")
     exec_command("""
 create table tmp_special_retrospect as  
@@ -254,7 +254,7 @@ where a.户号=b.code
 
 # 0604 修改 不需人工该选择，自动选择摘要含有“半成品产出抛帐”的最后一次（行号最大）凭证号，将其放入tmp_semi_product_disposal
 def gen_tmp_semi_product_disposal():
-    logger.info("生成tmp_semi_product_disposal")
+    logger.info("获取最后一次半成品产出抛帐凭证号，生成tmp_semi_product_disposal表")
     exec_command("drop table if exists tmp_semi_product_disposal")
     exec_command("""
 create table tmp_semi_product_disposal as 
@@ -268,7 +268,7 @@ where "index" = (select max("index")
 
 # 根据0606测试文档 0615 讨论确定 0618 修改 amount_incurred发生凭证金额 和 voucher_incurred发生凭证 去掉判断条件 "不能是之前后台表sheet 凭证导入中记录的凭证号(ACH1000008)"
 def process_map_ccenter_caccount_svoucher():
-    logger.info("acc_产副品表与凭证表分析")
+    logger.info("处理 acc_产副品表与凭证表分析")
     gen_tmp_special_retrospect()
     gen_tmp_semi_product_disposal()
     exec_command("drop table if exists map_ccenter_caccount_voucher")
@@ -473,6 +473,7 @@ group by 1,3,4,5,6,8
 
 
 def select_voucher(rowno, voucher_index):
+    logger.info("选择凭证 {分析表行号: " + str(rowno) + ", 凭证行号: " + str(voucher_index) + "}")
     if rowno is None or rowno < 0 or voucher_index is None or voucher_index < 0:
         raise ValueError("参数值不在合理范围")
     query = "select voucher_incurred, cost_account_code, voucher_selected from map_ccenter_caccount_svoucher where rowno = " + str(rowno)
@@ -597,6 +598,7 @@ from tmp_voucher_splitted
 
 # 0704 新增 王坤群里联系增加成本科目和研发科目保留首次分配时数据需求
 def process_stat_raccount_orig():
+    logger.info("统计研发科目（首次分配）")
     exec_command("drop table if exists stat_raccount_orig")
     exec_command("""
 create table stat_raccount_orig as 
@@ -605,8 +607,10 @@ from map_svoucher_project_raccount
 group by 1,2
     """)
 
+
 # 0819 修改 拆分后凭证导入功能增加后，对统计研发项目和统计研发科目两个统计指标进行口径调整
 def process_stat_raccount():
+    logger.info("统计研发科目")
     exec_command("drop table if exists stat_raccount")
     exec_command("""
 create table stat_raccount as 
@@ -618,6 +622,7 @@ group by 1,2
 
 
 def process_stat_project_orig():
+    logger.info("统计研发项目（首次分配）")
     exec_command("drop table if exists stat_project_orig")
     exec_command("""
 create table stat_project_orig as
@@ -626,8 +631,10 @@ from map_svoucher_project_raccount a
 group by 1,2,3,4
     """)
 
+
 # 0819 修改 拆分后凭证导入功能增加后，对统计研发项目和统计研发科目两个统计指标进行口径调整
 def process_stat_project():
+    logger.info("统计研发项目")
     exec_command("drop table if exists stat_project")
     exec_command("""
 create table stat_project as
@@ -640,6 +647,7 @@ group by 1,2,3,4
 
 # 0704 新增 王坤群里联系增加成本科目和研发科目保留首次分配时数据需求
 def process_stat_caccount_orig():
+    logger.info("统计成本科目（首次分配）")
     exec_command("drop table if exists stat_caccount_orig")
     exec_command("""
 create table stat_caccount_orig as
@@ -659,6 +667,7 @@ group by 1,2,3,4
 # 0828 修改 拆分后凭证导入功能增加后，对统计成本元素这个统计指标进行口径调整
 # 0904 修改 拆分后凭证导入功能增加后，对 统计成本元素 和 acf_da_调整入库凭证 进行口径调整
 def process_stat_caccount():
+    logger.info("统计成本科目")
     exec_command("drop table if exists stat_caccount")
     exec_command("""
 create table stat_caccount as
@@ -675,6 +684,7 @@ group by 1,2,3,4
 
 
 def process_stat_after_adjusted_left():
+    logger.info("处理 acd_系数设置后指标统计_左")
     exec_command("drop table if exists acd_系数设置后指标统计_左")
     exec_command("""
 create table acd_系数设置后指标统计_左 as
@@ -708,6 +718,7 @@ set amount_recycle = wt_recycle * unit_price_discount,
 
 # 根据0606 测试文档 0615讨论确定 0618 修改 改为orig_product_cost左关联map_project_product_account
 def process_stat_after_adjusted_right():
+    logger.info("处理 acd_系数设置后指标统计_右")
     exec_command("drop table if exists acd_系数设置后指标统计_右")
     exec_command("""
 create table acd_系数设置后指标统计_右 as
@@ -740,6 +751,7 @@ group by 1
 
 # 根据 0628 测试文档 修改
 def process_stat_voucher_balance():
+    logger.info("处理 acd_值状态测试结果")
     exec_command("drop table if exists stat_voucher_balance")
     exec_command("""
 create table stat_voucher_balance as 

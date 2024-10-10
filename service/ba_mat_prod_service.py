@@ -4,6 +4,7 @@ from core.database import *
 
 
 def process_acg_ba_semi_voucher():
+    logger.info("处理 acg_ba_待调整序时账")
     exec_command("drop table if exists acg_ba_待调整序时账")
     exec_command("""
 create table acg_ba_待调整序时账 as 
@@ -19,6 +20,7 @@ set project_wt_recycle = wt_recycle * ratio_wt_in_product,
 
 
 def process_acg_da_rd_unit_price():
+    logger.info("处理 acg_da_研发单价重算")
     exec_command("drop table if exists tmp_acg_de_入库单价重算")
     exec_command("""
 create table tmp_acg_de_入库单价重算 as 
@@ -46,9 +48,7 @@ where b.借贷='2'
 update tmp_acg_de_入库单价重算 as a
    set flowno = 0    
     """)
-    exec_command("""
-drop table if exists acg_de_入库单价重算    
-    """)
+    exec_command("drop table if exists acg_de_入库单价重算")
     exec_command("""
 create table acg_de_入库单价重算 as 
 select *, null 半成品产出重量, null 调整后生产成本金额, null 调整后生产成本重量, null 调整后入库金额, null 调整后入库重量 
@@ -85,6 +85,7 @@ update acg_da_研发单价重算 as a
 
 
 def process_acg_db_rd_amount():
+    logger.info("处理 acg_db_研发金额重算")
     exec_command("drop table if exists acg_db_研发金额重算")
     exec_command("""
 create table acg_db_研发金额重算 as 
@@ -103,6 +104,7 @@ where a.户号代码=b.户号
 
 
 def process_recalculate():
+    logger.info("处理 单价重算流程")
     # 1 初始化
     exec_command("drop table if exists acg_dd_消耗单价重算")
     exec_command("""
@@ -119,9 +121,7 @@ where a.贷方会计科目代码 = c.会计科目代码
   and a.借方户号 = b.户号
   and a.借方参号 = b.参号
     """)
-    exec_command("""
-drop table if exists acg_dc_半成品生产收发存表
-    """)
+    exec_command("drop table if exists acg_dc_半成品生产收发存表")
     exec_command("""
 create table acg_dc_半成品生产收发存表 as 
 select row_number() over(order by 会计科目代码, 产副品代码) rowno, *, null 数量, null 金额, null 单价 from 
@@ -153,9 +153,7 @@ update acg_de_入库单价重算 as a
    set 半成品产出重量 = (select 重量合计 from acg_da_研发单价重算 b where b.户号=a.户号)    
     """)
     # 2.0 单价重算准备
-    exec_command("""
-drop table if exists tmp_current_link_in_flow    
-    """)
+    exec_command("drop table if exists tmp_current_link_in_flow")
     exec_command("""
 create table tmp_current_link_in_flow as 
 select flowno, groupno, group_concat(借方会计科目代码) 借方会计科目代码, group_concat(户号) 借方户号, group_concat(贷方户号) 贷方户号, group_concat(贷方参号) 贷方参号
@@ -299,9 +297,7 @@ where a.户号名称||'-外销' = b.户号名称
   and a.户号=c.产副品代码
   and c.类别='4本期结存'    
     """)
-    exec_command("""
-drop table if exists acg_dg_自制半成品销售计价    
-    """)
+    exec_command("drop table if exists acg_dg_自制半成品销售计价")
     exec_command("""
 create table acg_dg_自制半成品销售计价 as 
 select a.会计科目代码 贷方会计科目代码, a.会计科目中文名称 b贷方会计科目, a.户号 贷方户号, a.户号名称 c贷方户号名称, a.本币金额 d贷方金额, a.数量 e贷方重量, a."index" 贷方行号,
@@ -361,9 +357,8 @@ update acg_dc_半成品生产收发存表 as a
 
 
 def process_merchandise_inventory():
-    exec_command("""
-drop table if exists acg_ea_当期库存商品收发存表    
-    """)
+    logger.info("处理库存商品相关信息，生成 acg_ea_当期库存商品收发存表 acg_eb_库存商品销售计价")
+    exec_command("drop table if exists acg_ea_当期库存商品收发存表")
     exec_command("""
 create table acg_ea_当期库存商品收发存表 as 
 select row_number() over(order by 会计科目代码, 产副品代码) rowno, *, null 数量, null 金额, null 单价 from 
@@ -393,9 +388,7 @@ set 数量=(select sum(数量) from acg_ea_当期库存商品收发存表 b wher
     单价=(select sum(金额) from acg_ea_当期库存商品收发存表 b where b.groupno=a.groupno and b.类别 in ('1期初信息', '2本期入库')) / (select sum(数量) from acg_ea_当期库存商品收发存表 b where b.groupno=a.groupno and b.类别 in ('1期初信息', '2本期入库'))
 where 类别='3本期结存'    
     """)
-    exec_command("""
-drop table if exists acg_eb_库存商品销售计价    
-    """)
+    exec_command("drop table if exists acg_eb_库存商品销售计价")
     exec_command("""
 create table acg_eb_库存商品销售计价 as 
 select row_number() over() rowno, 
@@ -435,6 +428,7 @@ where 类别='5期末信息'
 
 
 def process_acg_fa_adjust_instorage_voucher():
+    logger.info("处理 acg_fa_调整入库凭证")
     exec_command("""
 update acg_fa_调整入库凭证 as a 
    set p重算单价调整金额 = (select 调整后入库金额 from acg_de_入库单价重算 b where b.借方会计科目代码=a.会计科目代码 and b.户号=a.户号) - amount_adjusted,
@@ -470,6 +464,7 @@ update acg_fa_调整入库凭证 as a
 
 
 def process_acg_fb_adjust_consume_voucher():
+    logger.info("处理 acg_fb_调整消耗凭证")
     exec_command("drop table if exists acg_fb_调整消耗凭证")
     exec_command("""
 create table acg_fb_调整消耗凭证 as 
@@ -498,9 +493,8 @@ update acg_fb_调整消耗凭证 as a
 
 
 def process_acg_fc_append_instorage_voucher():
-    exec_command("""
-drop table if exists acg_fc_入库凭证追加行    
-    """)
+    logger.info("处理 acg_fc_入库凭证追加行")
+    exec_command("drop table if exists acg_fc_入库凭证追加行")
     exec_command("""
 create table acg_fc_入库凭证追加行 as 
 select '中间试验品回收' a凭证摘要, '1' b借贷, 会计科目代码 c会计科目代码, 会计科目中文名称 d会计科目中文名称, 户号代码 e户号, 户号名称 f户号名称, null g参号, null h参号名称, sum(研发金额) i本币金额, sum(研发重量) j数量
@@ -536,9 +530,8 @@ group by 5,6,3,4
 
 
 def process_acg_fd_main_cost_voucher():
-    exec_command("""
-drop table if exists acg_fd_调后转主营成本凭证    
-    """)
+    logger.info("处理 acg_fd_调后转主营成本凭证")
+    exec_command("drop table if exists acg_fd_调后转主营成本凭证")
     exec_command("""
 create table acg_fd_调后转主营成本凭证 as 
 select "index" 位置, case when 凭证摘要 like '半成品%' then '半成品抛帐' when 凭证摘要 like '产成品%' then '产成品抛账' end 类型, null b原金额, null c原重量,
@@ -564,7 +557,8 @@ where /* 0926 修改 根据需求去除类型的判断 类型 = '产成品抛账
 
 
 def process_acg_fe_inventory_summary():
-    exec_command("""drop table if exists acg_fe_当期收发存结果表""")
+    logger.info("处理 acg_fe_当期收发存结果表")
+    exec_command("drop table if exists acg_fe_当期收发存结果表")
     exec_command("""
 create table acg_fe_当期收发存结果表 as 
 select 'B-'||sum(case when 类别='1期初信息' then rowno else 0 end) 编码, 会计科目代码, 会计科目名称,  产副品代码, 产副品名称,
@@ -607,9 +601,8 @@ group by 2,3,4,5
 
 
 def process_acg_ad_stat_project():
-    exec_command("""
-drop table if exists acg_ad_统计_研发项目    
-    """)
+    logger.info("处理 acg_ad_统计_研发项目")
+    exec_command("drop table if exists acg_ad_统计_研发项目")
     exec_command("""
 create table acg_ad_统计_研发项目 as 
 select *, null h单价调整金额（CA表）, null i研发借方额（E列加H列）, null j研发贷方额（FC表）, null k研发净额（I列减J列）, null l占比 

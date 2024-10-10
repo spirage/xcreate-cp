@@ -5,6 +5,7 @@ from core.database import *
 
 # 0618 project_id 改为 project_code
 def process_ace_ba_bb():
+    logger.info("处理 ace_ba_bb")
     exec_command("drop table if exists ace_ba_bb")
     exec_command("""
 create table ace_ba_bb as 
@@ -30,6 +31,7 @@ set project_wt_recycle = wt_recycle * ratio_wt_in_product,
 
 
 def process_ace_bc():
+    logger.info("处理 ace_bc_中间试验品回收明细")
     exec_command("drop table if exists ace_bc")
     exec_command("""
 create table ace_bc as 
@@ -42,6 +44,7 @@ from ace_ba_bb
 
 # 0618 project_id 改为 project_code
 def process_ace_ca_cb():
+    logger.info("处理 ace_ca_cb")
     exec_command("drop table if exists ace_ca_cb")
     exec_command("""
 create table ace_ca_cb as 
@@ -67,6 +70,7 @@ set project_wt_inventoryrd = wt_inventory_transfer * ratio_wt_in_product,
 
 
 def process_ace_cc():
+    logger.info("处理 ace_cc_研发产品入库明细")
     exec_command("drop table if exists ace_cc")
     exec_command("""
 create table ace_cc as 
@@ -87,6 +91,7 @@ from ace_ca_cb
 
 
 def process_acf_ad_voucher_instorage_consume():
+    logger.info("处理 acf_ad_初始凭证_入库消耗")
     exec_command("drop table if exists acf_ad_初始凭证_入库消耗")
     exec_command("""
 create table acf_ad_初始凭证_入库消耗 as
@@ -96,6 +101,7 @@ where 凭证号码 in (select voucher_no from tmp_semi_product_disposal)
 
 
 def process_acf_ad_splitted_instorage_consume():
+    logger.info("处理 acf_ad_分配后入库消耗")
     exec_command("drop table if exists acf_ad_分配后入库消耗")
     exec_command("""
 create table acf_ad_分配后入库消耗 as
@@ -105,6 +111,7 @@ where 凭证号码 in (select voucher_no from tmp_semi_product_disposal)
 
 
 def process_acf_bb_consume_orig():
+    logger.info("处理 acf_bb_初始凭证-消耗")
     exec_command("drop table if exists acf_bb_consume_orig")
     exec_command("""
 create table acf_bb_consume_orig as
@@ -125,6 +132,7 @@ where a.凭证号码 in (select voucher_no from tmp_semi_product_disposal)
 
 
 def process_acf_ba_instorage_orig():
+    logger.info("处理 acf_ba_初始凭证-入库")
     exec_command("drop table if exists acf_ba_instorage_orig")
     exec_command("""
 create table acf_ba_instorage_orig as
@@ -137,6 +145,7 @@ order by a.参号, 户号, 借贷
 
 # 0618 新增 入库转消耗接口
 def transfer_instorage_to_consume(index):
+    logger.info("入库转消耗 {index: " + str(index)+"}")
     if index is None or index < 0:
         raise ValueError("[入库凭证索引号] 参数值 不在合理范围")
     query = "select 1 from acf_ba_instorage_orig where \"index\" = " + str(index)
@@ -150,6 +159,7 @@ def transfer_instorage_to_consume(index):
 
 # 0618 新增 消耗转入库接口
 def transfer_consume_to_instorage(index):
+    logger.info("消耗转入库 {index: " + str(index) + "}")
     if index is None or index < 0:
         raise ValueError("[凭证索引号] 参数值 不在合理范围")
     query = "select 1 from acf_bb_consume_orig where \"index\" = " + str(index)
@@ -162,6 +172,7 @@ def transfer_consume_to_instorage(index):
 
 
 def process_acf_bc_instorage_sum():
+    logger.info("处理 acf_bc_同项合并_入库凭证")
     exec_command("drop table if exists acf_bc_instorage_sum")
     exec_command("""
 create table acf_bc_instorage_sum as 
@@ -172,6 +183,7 @@ group by 1,2,3,4,5,6,7,8
 
 
 def process_acf_bd_consume_sum():
+    logger.info("处理 acf_bd_同项合并_消耗凭证")
     exec_command("drop table if exists acf_bd_consume_sum")
     exec_command("""
 create table acf_bd_consume_sum as
@@ -182,6 +194,7 @@ group by 1,2,3,4,5,6,7,8
 
 
 def process_acf_ca_instorage_horizontal():
+    logger.info("处理 acf_ca_入库借贷对照分析")
     exec_command("drop table if exists tmp_acf_ca_instorage_horizontal")
     exec_command("""
 create table tmp_acf_ca_instorage_horizontal as 
@@ -217,6 +230,7 @@ order by groupno
 
 
 def process_acf_cb_instorage_flow():
+    logger.info("处理 acf_cb_流程顺序分析")
     exec_command("drop table if exists acf_cb_instorage_flow")
     exec_command("""
 create table acf_cb_instorage_flow as 
@@ -239,6 +253,7 @@ set flowno = coalesce((select flowno from acf_cb_instorage_flow b where b.产副
 
 
 def process_acf_cc_consume_horizontal():
+    logger.info("处理 acf_cc_消耗借贷对照分析")
     exec_command("drop table if exists acf_cc_consume_horizontal")
     exec_command("""
 create table acf_cc_consume_horizontal as 
@@ -257,6 +272,7 @@ order by flowno
 # 0904 修改 拆分后凭证导入功能增加后，对 统计成本元素 和 acf_da_调整入库凭证 进行口径调整
 # 0908 修改 拆分后凭证导入功能增加后，根据沟通情况调整stat_product口径
 def process_acf_da_instorage_adjust():
+    logger.info("处理 统计产品")
     exec_command("drop table if exists stat_product")
     exec_command("""
 create table stat_product as 
@@ -279,6 +295,7 @@ where a.成本中心代码=b.cost_center_code
   and a.成本科目代码=b.cost_account_code
 group by 1
     """)
+    logger.info("处理 acf_da_调整入库凭证")
     exec_command("drop table if exists acf_da_instorage_adjust")
     exec_command("""
 create table acf_da_instorage_adjust as 
@@ -330,6 +347,7 @@ update acf_da_instorage_adjust as a
 
 
 def process_acf_db_consume_adjust():
+    logger.info("处理 acf_db_调整消耗凭证")
     exec_command("drop table if exists acf_db_consume_adjust")
     exec_command("""
 create table acf_db_consume_adjust as 

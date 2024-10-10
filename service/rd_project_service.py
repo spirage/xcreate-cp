@@ -70,7 +70,7 @@ group by  1, 2
 
 
 def fill_code_product():
-    logger.info("导入orig_product_cost时补充code_product")
+    logger.info("导入 orig_product_cost 时补充 code_product")
     # 0626 新增 第2种情况，即 产品代码表中已存在代码，但本月产副品成本构成表中名称与代码表中不一样 情况的处理
     # 1 产品代码表中不存在，本月产副品成本构成表中新出现的代码及相关信息，添加到产品代码表
     exec_command("""    

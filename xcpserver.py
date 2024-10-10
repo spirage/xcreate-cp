@@ -10,8 +10,11 @@ def ignore_signal(sig, frame):
 
 if __name__ == '__main__':
     try:
-        logger.info("xcp server start listening on http://localhost:7980")
+        host = config.get('CORE_HOST')
+        port = config.get('CORE_PORT')
+        logger.info("xcp server start listening on http://" + str(host) + ":" + str(port))
+        logger.info("xcp swagger document url is http://" + str(host) + ":" + str(port) + "/doc")
         signal(SIGINT, ignore_signal)
-        uvicorn.run(app, host='0.0.0.0', port=7980, log_level=logging.CRITICAL, server_header=None)
+        uvicorn.run(app, host=host, port=port, log_level=logging.CRITICAL, server_header=None)
     except Exception as e:
         logger.error(str(e))
