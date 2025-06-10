@@ -3,7 +3,7 @@ import os
 from core.log import *
 from dotenv import dotenv_values, load_dotenv
 
-env_name = "test"
+env_name = "prod"
 env_file = ".env." + env_name
 if not os.path.exists(env_file):
     env_file = "../" + env_file
